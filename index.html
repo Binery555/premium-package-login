@@ -1,167 +1,153 @@
 <!DOCTYPE html>
-<html lang="en" >
-<head>
-  <meta charset="UTF-8">
-  <title>Untitled</title>
-  
-
-</head>
-<body>
-<!-- partial:index.partial.html -->
-<!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Derivesup Tick Analyzer</title>
-    <style>
-        body {
-            font-family: Arial, sans-serif;
-            margin: 0;
-            padding: 0;
-            background-color: #e0f7fa; /* Light blue background */
-            color: #333;
-            overflow: hidden;
-        }
-
-        .container {
-            display: flex;
-            flex-direction: column;
-            justify-content: center;
-            align-items: center;
-            height: 100vh;
-            background-color: #e0f7fa;
-            color: #333;
-            opacity: 0; /* Hidden initially for animation */
-            animation: fadeInAction 4s forwards; /* 4 seconds fade-in */
-        }
-
-        .header {
-            font-size: 3rem;
-            font-weight: bold;
-            color: #0288d1; /* Light blue color for header */
-            margin-bottom: 30px;
-            transform: scale(0); /* Start scaled down */
-            animation: bounceIn 2s ease-out forwards 0.5s; /* Bouncing in with delay */
-        }
-
-        .login-form {
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            border: 2px solid #0288d1; /* Light blue border */
-            border-radius: 10px;
-            padding: 20px;
-            background-color: white;
-            box-shadow: 0px 4px 12px rgba(0, 0, 0, 0.2);
-            transform: translateY(100px); /* Start from the bottom */
-            animation: moveUp 1s ease-out forwards 2s; /* Slide up after header animation */
-        }
-
-        .login-form input, .login-form button {
-            width: 100%;
-            padding: 12px;
-            margin: 10px 0;
-            border-radius: 5px;
-        }
-
-        .login-form input {
-            border: 1px solid #ccc;
-        }
-
-        .login-form button {
-            background-color: #0288d1; /* Light blue button */
-            color: white;
-            border: none;
-            font-size: 1rem;
-            cursor: pointer;
-        }
-
-        .login-form button:hover {
-            background-color: #01579b; /* Darker blue on hover */
-        }
-
-        .error {
-            color: red;
-            margin-top: 10px;
-            display: none;
-        }
-
-        /* Keyframes for animations */
-        @keyframes fadeInAction {
-            0% {
-                opacity: 0;
-            }
-            50% {
-                opacity: 0.5;
-            }
-            100% {
-                opacity: 1;
-            }
-        }
-
-        @keyframes bounceIn {
-            0% {
-                transform: scale(0);
-                opacity: 0;
-            }
-            60% {
-                transform: scale(1.1);
-                opacity: 1;
-            }
-            100% {
-                transform: scale(1);
-            }
-        }
-
-        @keyframes moveUp {
-            0% {
-                transform: translateY(100px);
-            }
-            100% {
-                transform: translateY(0);
-            }
-        }
-
-    </style>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Live RSI & MA Chart</title>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <style>
+    body {
+      background-color: #1e1e2f;
+      color: white;
+      font-family: 'Segoe UI', sans-serif;
+      margin: 0;
+      padding: 20px;
+    }
+    .chart-container {
+      background: #2a2d3e;
+      border-radius: 10px;
+      padding: 20px;
+      max-width: 900px;
+      margin: auto;
+    }
+    select {
+      padding: 8px;
+      margin-bottom: 15px;
+      border: none;
+      border-radius: 5px;
+    }
+    .info {
+      text-align: center;
+      margin-top: 10px;
+    }
+  </style>
 </head>
 <body>
-    <div class="container">
-        <div class="header">Derivesup Premium Analyzer</div>
-        <form class="login-form" onsubmit="return validateLogin(event)">
-            <input type="text" id="username" placeholder="Username" required>
-            <input type="password" id="password" placeholder="Password" required>
-            <button type="submit">Login</button>
-            <div class="error" id="error-message">Invalid username or password</div>
-        </form>
-    </div>
+  <div class="chart-container">
+    <h2>📉 Indicators</h2>
+    <label for="market">Select Market:</label>
+    <select id="market">
+      <option value="R_10_1HZ">Volatility 10 (1s) Index</option>
+      <option value="R_10">Volatility 10 Index</option>
+      <option value="R_25_1HZ">Volatility 25 (1s) Index</option>
+      <option value="R_25">Volatility 25 Index</option>
+      <option value="R_50_1HZ">Volatility 50 (1s) Index</option>
+      <option value="R_50">Volatility 50 Index</option>
+      <option value="R_75_1HZ">Volatility 75 (1s) Index</option>
+      <option value="R_75">Volatility 75 Index</option>
+      <option value="R_100_1HZ" selected>Volatility 100 (1s) Index</option>
+      <option value="R_100">Volatility 100 Index</option>
+    </select>
+    <canvas id="tickChart" width="800" height="400"></canvas>
+    <div class="info" id="indicatorValues">RSI: -- | MA(5): --</div>
+  </div>
 
-    <audio id="opening-sound" src="action-sound.mp3" preload="auto"></audio> <!-- Replace with your sound file -->
-    
-    <script>
-        // Play the opening sound when the page is loaded
-        window.onload = function() {
-            const sound = document.getElementById('opening-sound');
-            sound.play();
-        };
+  <script>
+    const token = "KsYMnJ8U7BJgklp";
+    let ws;
+    let tickHistory = [];
+    let currentMarket = "R_100_1HZ";
 
-        function validateLogin(event) {
-            event.preventDefault();
+    const ctx = document.getElementById('tickChart').getContext('2d');
+    const indicatorText = document.getElementById('indicatorValues');
 
-            const username = document.getElementById('username').value;
-            const password = document.getElementById('password').value;
-            const errorMessage = document.getElementById('error-message');
-
-            if (username === 'Nuwa' && password === '1997') {
-                window.location.href = 'https://binery555.github.io/premium-package-home-pages/'; // Replace with your desired URL
-            } else {
-                errorMessage.style.display = 'block';
-            }
+    const chart = new Chart(ctx, {
+      type: 'line',
+      data: {
+        labels: [],
+        datasets: [{
+          label: 'Tick Price',
+          data: [],
+          borderColor: '#00bfff',
+          backgroundColor: '#00bfff',
+          tension: 0.2,
+          fill: false,
+          pointRadius: 4,
+          pointHoverRadius: 6
+        }]
+      },
+      options: {
+        responsive: true,
+        scales: {
+          x: { ticks: { color: '#ccc' }, grid: { color: '#444' }},
+          y: { ticks: { color: '#ccc' }, grid: { color: '#444' }}
+        },
+        plugins: {
+          legend: { labels: { color: '#fff' } }
         }
-    </script>
-</body>
-</html>
-<!-- partial -->
-  
+      }
+    });
+
+    function calculateMA(data, period = 5) {
+      if (data.length < period) return null;
+      const sum = data.slice(-period).reduce((a, b) => a + b, 0);
+      return (sum / period).toFixed(2);
+    }
+
+    function calculateRSI(data, period = 14) {
+      if (data.length < period + 1) return null;
+      let gains = 0, losses = 0;
+      for (let i = data.length - period - 1; i < data.length - 1; i++) {
+        const diff = data[i + 1] - data[i];
+        if (diff > 0) gains += diff;
+        else losses -= diff;
+      }
+      if (losses === 0) return 100;
+      const rs = gains / losses;
+      return (100 - (100 / (1 + rs))).toFixed(2);
+    }
+
+    function updateChart() {
+      chart.data.labels = tickHistory.map((_, i) => i + 1);
+      chart.data.datasets[0].data = tickHistory;
+      chart.update();
+
+      const rsi = calculateRSI(tickHistory) || "--";
+      const ma = calculateMA(tickHistory) || "--";
+      indicatorText.textContent = `RSI: ${rsi} | MA(5): ${ma}`;
+    }
+
+    function connectWebSocket(market) {
+      if (ws) ws.close();
+      tickHistory = [];
+      ws = new WebSocket("wss://ws.binaryws.com/websockets/v3?app_id=69656");
+
+      ws.onopen = () => {
+        ws.send(JSON.stringify({ authorize: token }));
+        ws.send(JSON.stringify({
+          ticks: market,
+          subscribe: 1
+        }));
+      };
+
+      ws.onmessage = (msg) => {
+        const data = JSON.parse(msg.data);
+
+        if (data.msg_type === "tick") {
+          const price = parseFloat(data.tick.quote);
+          tickHistory.push(price);
+          if (tickHistory.length > 50) tickHistory.shift();
+          updateChart();
+        }
+      };
+    }
+
+    document.getElementById("market").addEventListener("change", (e) => {
+      currentMarket = e.target.value;
+      connectWebSocket(currentMarket);
+    });
+
+    connectWebSocket(currentMarket); // initial load
+  </script>
 </body>
 </html>
