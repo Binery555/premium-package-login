@@ -3,151 +3,167 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>Live RSI & MA Chart</title>
+  <title>Volatility Index Live Dashboard</title>
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
   <style>
     body {
-      background-color: #1e1e2f;
-      color: white;
-      font-family: 'Segoe UI', sans-serif;
       margin: 0;
-      padding: 20px;
+      font-family: Arial, sans-serif;
+      background-color: #111;
+      color: #fff;
     }
+
+    .header {
+      background-color: #1a1a1a;
+      padding: 10px 20px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      border-bottom: 2px solid #333;
+    }
+
+    .header .title {
+      font-weight: bold;
+      font-size: 18px;
+    }
+
     .chart-container {
-      background: #2a2d3e;
-      border-radius: 10px;
       padding: 20px;
-      max-width: 900px;
-      margin: auto;
     }
-    select {
-      padding: 8px;
-      margin-bottom: 15px;
-      border: none;
-      border-radius: 5px;
+
+    canvas {
+      background-color: #181818;
+      border: 1px solid #333;
+      margin-bottom: 30px;
     }
-    .info {
-      text-align: center;
-      margin-top: 10px;
+
+    .dropdown {
+      background-color: #1a1a1a;
+      color: #fff;
+      border: 1px solid #333;
+      padding: 5px;
+      font-size: 16px;
+    }
+
+    .price {
+      font-size: 16px;
+      margin-left: 20px;
     }
   </style>
 </head>
 <body>
-  <div class="chart-container">
-    <h2>📉 Indicators</h2>
-    <label for="market">Select Market:</label>
-    <select id="market">
-      <option value="R_10_1HZ">Volatility 10 (1s) Index</option>
+  <div class="header">
+    <div class="title">📈 Volatility Index Live Chart</div>
+    <select id="indexSelector" class="dropdown">
+      <option value="R_10">Volatility 10 (1s) Index</option>
       <option value="R_10">Volatility 10 Index</option>
-      <option value="R_25_1HZ">Volatility 25 (1s) Index</option>
+      <option value="R_25">Volatility 25 (1s) Index</option>
       <option value="R_25">Volatility 25 Index</option>
-      <option value="R_50_1HZ">Volatility 50 (1s) Index</option>
+      <option value="R_50">Volatility 50 (1s) Index</option>
       <option value="R_50">Volatility 50 Index</option>
-      <option value="R_75_1HZ">Volatility 75 (1s) Index</option>
+      <option value="R_75">Volatility 75 (1s) Index</option>
       <option value="R_75">Volatility 75 Index</option>
-      <option value="R_100_1HZ" selected>Volatility 100 (1s) Index</option>
+      <option value="R_100" selected>Volatility 100 (1s) Index</option>
       <option value="R_100">Volatility 100 Index</option>
     </select>
-    <canvas id="tickChart" width="800" height="400"></canvas>
-    <div class="info" id="indicatorValues">RSI: -- | MA(5): --</div>
+  </div>
+
+  <div class="chart-container">
+    <canvas id="priceChart" height="150"></canvas>
   </div>
 
   <script>
     const token = "KsYMnJ8U7BJgklp";
+    const maxPoints = 50;
+    let priceData = [];
     let ws;
-    let tickHistory = [];
-    let currentMarket = "R_100_1HZ";
+    let chart;
+    let currentSymbol = "R_100";
+    let subscriptionId;
 
-    const ctx = document.getElementById('tickChart').getContext('2d');
-    const indicatorText = document.getElementById('indicatorValues');
-
-    const chart = new Chart(ctx, {
-      type: 'line',
+    const ctx = document.getElementById("priceChart").getContext("2d");
+    chart = new Chart(ctx, {
+      type: "line",
       data: {
         labels: [],
         datasets: [{
-          label: 'Tick Price',
+          label: "Price",
           data: [],
-          borderColor: '#00bfff',
-          backgroundColor: '#00bfff',
-          tension: 0.2,
-          fill: false,
-          pointRadius: 4,
-          pointHoverRadius: 6
+          borderColor: "white",
+          backgroundColor: "transparent",
+          tension: 0.3
         }]
       },
       options: {
-        responsive: true,
+        plugins: { legend: { display: false } },
         scales: {
-          x: { ticks: { color: '#ccc' }, grid: { color: '#444' }},
-          y: { ticks: { color: '#ccc' }, grid: { color: '#444' }}
-        },
-        plugins: {
-          legend: { labels: { color: '#fff' } }
+          x: { display: false },
+          y: {
+            display: true,
+            grid: { color: "#222" },
+            ticks: { color: "#999" }
+          }
         }
       }
     });
 
-    function calculateMA(data, period = 5) {
-      if (data.length < period) return null;
-      const sum = data.slice(-period).reduce((a, b) => a + b, 0);
-      return (sum / period).toFixed(2);
-    }
+    function connectWebSocket(symbol) {
+      if (ws) ws.close(); // Clean up old socket
 
-    function calculateRSI(data, period = 14) {
-      if (data.length < period + 1) return null;
-      let gains = 0, losses = 0;
-      for (let i = data.length - period - 1; i < data.length - 1; i++) {
-        const diff = data[i + 1] - data[i];
-        if (diff > 0) gains += diff;
-        else losses -= diff;
-      }
-      if (losses === 0) return 100;
-      const rs = gains / losses;
-      return (100 - (100 / (1 + rs))).toFixed(2);
-    }
-
-    function updateChart() {
-      chart.data.labels = tickHistory.map((_, i) => i + 1);
-      chart.data.datasets[0].data = tickHistory;
-      chart.update();
-
-      const rsi = calculateRSI(tickHistory) || "--";
-      const ma = calculateMA(tickHistory) || "--";
-      indicatorText.textContent = `RSI: ${rsi} | MA(5): ${ma}`;
-    }
-
-    function connectWebSocket(market) {
-      if (ws) ws.close();
-      tickHistory = [];
-      ws = new WebSocket("wss://ws.binaryws.com/websockets/v3?app_id=69656");
+      ws = new WebSocket("wss://ws.derivws.com/websockets/v3?app_id=1089");
 
       ws.onopen = () => {
         ws.send(JSON.stringify({ authorize: token }));
-        ws.send(JSON.stringify({
-          ticks: market,
-          subscribe: 1
-        }));
       };
 
       ws.onmessage = (msg) => {
         const data = JSON.parse(msg.data);
 
-        if (data.msg_type === "tick") {
+        if (data.msg_type === "authorize") {
+          subscribeToSymbol(symbol);
+        } else if (data.msg_type === "tick") {
           const price = parseFloat(data.tick.quote);
-          tickHistory.push(price);
-          if (tickHistory.length > 50) tickHistory.shift();
-          updateChart();
+          updateChart(price);
         }
       };
     }
 
-    document.getElementById("market").addEventListener("change", (e) => {
-      currentMarket = e.target.value;
-      connectWebSocket(currentMarket);
+    function subscribeToSymbol(symbol) {
+      // Clear chart
+      priceData = [];
+      chart.data.labels = [];
+      chart.data.datasets[0].data = [];
+
+      const subRequest = {
+        ticks: symbol,
+        subscribe: 1
+      };
+
+      ws.send(JSON.stringify(subRequest));
+    }
+
+    function updateChart(price) {
+      const now = new Date().toLocaleTimeString();
+
+      if (priceData.length >= maxPoints) {
+        priceData.shift();
+        chart.data.labels.shift();
+      }
+
+      priceData.push(price);
+      chart.data.labels.push(now);
+      chart.data.datasets[0].data = [...priceData];
+      chart.update();
+    }
+
+    // Dropdown Change Handler
+    document.getElementById("indexSelector").addEventListener("change", (e) => {
+      currentSymbol = e.target.value;
+      connectWebSocket(currentSymbol);
     });
 
-    connectWebSocket(currentMarket); // initial load
+    // Initial load
+    connectWebSocket(currentSymbol);
   </script>
 </body>
 </html>
