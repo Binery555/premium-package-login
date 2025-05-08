@@ -2,168 +2,195 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>Volatility Index Live Dashboard</title>
-  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Deriv Trading Hub – Cyber-Neon</title>
+  <link
+    href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css"
+    rel="stylesheet"
+  />
   <style>
+    :root {
+      --bg1: #001f3f;
+      --bg2: #000814;
+      --card-bg: rgba(0,0,0,0.6);
+      --accent-yellow: #FFD700;
+      --accent-red: #FF4136;
+    }
+    * { box-sizing: border-box; margin:0; padding:0; }
     body {
-      margin: 0;
-      font-family: Arial, sans-serif;
-      background-color: #111;
+      min-height:100vh;
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      background: radial-gradient(circle at top left, var(--bg1), var(--bg2));
+      font-family:'Segoe UI', sans-serif;
       color: #fff;
+      overflow:hidden;
     }
 
-    .header {
-      background-color: #1a1a1a;
-      padding: 10px 20px;
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      border-bottom: 2px solid #333;
+    /* ─── NEON BORDER ─── */
+    .card {
+      position: relative;
+      width: 420px;           /* ↑ a bit wider */
+      padding: 50px 40px;     /* ↑ more padding for height */
+      border-radius: 16px;
+      background: var(--card-bg);
+      box-shadow: 0 0 16px rgba(0,0,0,0.7);
+      text-align: center;
+      overflow: hidden;
+    }
+    .card::before {
+      content:'';
+      position:absolute;
+      top:-2px; left:-2px;
+      width:calc(100%+4px); height:calc(100%+4px);
+      background: linear-gradient(60deg, var(--accent-yellow), var(--accent-red), var(--accent-yellow));
+      background-size: 200% 200%;
+      animation: neon-glow 4s ease infinite;
+      z-index:0;
+      border-radius:18px;
+    }
+    @keyframes neon-glow {
+      0% { background-position: 0% 50%; }
+      50% { background-position: 100% 50%; }
+      100% { background-position: 0% 50%; }
+    }
+    .card > * { position: relative; z-index: 1; }
+
+    /* ─── HEADERS ─── */
+    .card h1 {
+      font-size: 2.4rem;
+      margin-bottom: 6px;
+      color: var(--accent-yellow);
+      text-shadow:
+        0 0 4px var(--accent-yellow),
+        0 0 10px var(--accent-yellow);
+      letter-spacing: .2em;
+    }
+    .card h2 {
+      font-size: 1rem;
+      margin-bottom: 28px;
+      color: var(--accent-red);
+      opacity: 0.8;
     }
 
-    .header .title {
+    /* ─── SPINNER ─── */
+    .spinner {
+      width: 50px;            /* ↑ slightly larger */
+      height: 50px;
+      border: 6px solid rgba(255,65,54,0.4);
+      border-top-color: var(--accent-yellow);
+      border-radius: 50%;
+      margin: 0 auto 36px;    /* ↑ more spacing */
+      animation: spin 0.9s linear infinite;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    /* ─── BUTTON GRID ─── */
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(3,1fr);
+      gap: 14px;
+      margin-bottom: 36px;    /* ↑ more spacing */
+    }
+    .grid button {
+      padding: 12px 0;        /* adjust vertical padding */
+      border: none;
+      border-radius: 8px;
+      background: linear-gradient(135deg, var(--accent-red), var(--accent-yellow));
+      color: #05080f;
+      font-size: 0.95rem;     /* slightly bigger text */
       font-weight: bold;
-      font-size: 18px;
+      cursor: pointer;
+      box-shadow: 0 0 8px rgba(255,215,0,0.5);
+      transition: transform 0.2s, box-shadow 0.2s;
+    }
+    .grid button:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 0 16px rgba(255,65,54,0.8);
+    }
+    .grid i {
+      display:block;
+      font-size:1.5rem;
+      margin-bottom:6px;
     }
 
-    .chart-container {
-      padding: 20px;
+    /* ─── PROGRESS BAR ─── */
+    .progress-wrapper {
+      margin-bottom: 14px;
+    }
+    .progress-bar {
+      width:100%;
+      height:10px;             /* ↑ slightly taller */
+      background: rgba(255,255,255,0.1);
+      border-radius:4px;
+      overflow:hidden;
+    }
+    .progress-bar-inner {
+      width:0;
+      height:100%;
+      background: linear-gradient(90deg, var(--accent-yellow), var(--accent-red));
+      transition: width 0.3s ease;
+    }
+    .progress-text {
+      margin-top:6px;
+      text-align:right;
+      font-size:0.9rem;       /* ↑ slightly larger */
+      color:#bbb;
     }
 
-    canvas {
-      background-color: #181818;
-      border: 1px solid #333;
-      margin-bottom: 30px;
-    }
-
-    .dropdown {
-      background-color: #1a1a1a;
-      color: #fff;
-      border: 1px solid #333;
-      padding: 5px;
-      font-size: 16px;
-    }
-
-    .price {
-      font-size: 16px;
-      margin-left: 20px;
+    /* ─── FOOTER ─── */
+    .footer {
+      margin-top:22px;
+      font-size:0.8rem;
+      color:#777;
     }
   </style>
 </head>
 <body>
-  <div class="header">
-    <div class="title">📈 Volatility Index Live Chart</div>
-    <select id="indexSelector" class="dropdown">
-      <option value="R_10">Volatility 10 (1s) Index</option>
-      <option value="R_10">Volatility 10 Index</option>
-      <option value="R_25">Volatility 25 (1s) Index</option>
-      <option value="R_25">Volatility 25 Index</option>
-      <option value="R_50">Volatility 50 (1s) Index</option>
-      <option value="R_50">Volatility 50 Index</option>
-      <option value="R_75">Volatility 75 (1s) Index</option>
-      <option value="R_75">Volatility 75 Index</option>
-      <option value="R_100" selected>Volatility 100 (1s) Index</option>
-      <option value="R_100">Volatility 100 Index</option>
-    </select>
-  </div>
 
-  <div class="chart-container">
-    <canvas id="priceChart" height="150"></canvas>
+  <div class="card">
+    <h1>DERIV</h1>
+    <h2>Trading Hub</h2>
+
+    <div class="spinner"></div>
+
+    <div class="grid">
+      <button><i class="fas fa-robot"></i>Free Bots</button>
+      <button><i class="fas fa-brain"></i>AI Bots</button>
+      <button><i class="fas fa-chart-line"></i>Analysis</button>
+      <button><i class="fas fa-magic"></i>Smart AI</button>
+      <button><i class="fas fa-copy"></i>Copy Trade</button>
+      <button><i class="fas fa-rss"></i>Signals</button>
+    </div>
+
+    <div class="progress-wrapper">
+      <div class="progress-bar">
+        <div class="progress-bar-inner" id="bar"></div>
+      </div>
+      <div class="progress-text" id="pct">0%</div>
+    </div>
+
+    <div class="footer">
+      © 2023 Binarytool | Powered by Deriv
+    </div>
   </div>
 
   <script>
-    const token = "KsYMnJ8U7BJgklp";
-    const maxPoints = 50;
-    let priceData = [];
-    let ws;
-    let chart;
-    let currentSymbol = "R_100";
-    let subscriptionId;
-
-    const ctx = document.getElementById("priceChart").getContext("2d");
-    chart = new Chart(ctx, {
-      type: "line",
-      data: {
-        labels: [],
-        datasets: [{
-          label: "Price",
-          data: [],
-          borderColor: "white",
-          backgroundColor: "transparent",
-          tension: 0.3
-        }]
-      },
-      options: {
-        plugins: { legend: { display: false } },
-        scales: {
-          x: { display: false },
-          y: {
-            display: true,
-            grid: { color: "#222" },
-            ticks: { color: "#999" }
-          }
-        }
+    let pct = 0;
+    const bar = document.getElementById('bar');
+    const pctText = document.getElementById('pct');
+    const timer = setInterval(() => {
+      pct++;
+      bar.style.width = pct + '%';
+      pctText.textContent = pct + '%';
+      if (pct >= 100) {
+        clearInterval(timer);
+        // redirect when complete:
+        window.location.href = 'https://binery555.github.io/loging-with-pagematcgesdiffer-/';
       }
-    });
-
-    function connectWebSocket(symbol) {
-      if (ws) ws.close(); // Clean up old socket
-
-      ws = new WebSocket("wss://ws.derivws.com/websockets/v3?app_id=1089");
-
-      ws.onopen = () => {
-        ws.send(JSON.stringify({ authorize: token }));
-      };
-
-      ws.onmessage = (msg) => {
-        const data = JSON.parse(msg.data);
-
-        if (data.msg_type === "authorize") {
-          subscribeToSymbol(symbol);
-        } else if (data.msg_type === "tick") {
-          const price = parseFloat(data.tick.quote);
-          updateChart(price);
-        }
-      };
-    }
-
-    function subscribeToSymbol(symbol) {
-      // Clear chart
-      priceData = [];
-      chart.data.labels = [];
-      chart.data.datasets[0].data = [];
-
-      const subRequest = {
-        ticks: symbol,
-        subscribe: 1
-      };
-
-      ws.send(JSON.stringify(subRequest));
-    }
-
-    function updateChart(price) {
-      const now = new Date().toLocaleTimeString();
-
-      if (priceData.length >= maxPoints) {
-        priceData.shift();
-        chart.data.labels.shift();
-      }
-
-      priceData.push(price);
-      chart.data.labels.push(now);
-      chart.data.datasets[0].data = [...priceData];
-      chart.update();
-    }
-
-    // Dropdown Change Handler
-    document.getElementById("indexSelector").addEventListener("change", (e) => {
-      currentSymbol = e.target.value;
-      connectWebSocket(currentSymbol);
-    });
-
-    // Initial load
-    connectWebSocket(currentSymbol);
+    }, 40);
   </script>
+
 </body>
 </html>
