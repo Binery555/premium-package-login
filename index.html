@@ -2,194 +2,198 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>Deriv Trading Hub – Cyber-Neon</title>
-  <link
-    href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css"
-    rel="stylesheet"
-  />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Live Trade History</title>
   <style>
-    :root {
-      --bg1: #001f3f;
-      --bg2: #000814;
-      --card-bg: rgba(0,0,0,0.6);
-      --accent-yellow: #FFD700;
-      --accent-red: #FF4136;
-    }
-    * { box-sizing: border-box; margin:0; padding:0; }
     body {
-      min-height:100vh;
-      display:flex;
-      align-items:center;
-      justify-content:center;
-      background: radial-gradient(circle at top left, var(--bg1), var(--bg2));
-      font-family:'Segoe UI', sans-serif;
-      color: #fff;
-      overflow:hidden;
+      margin: 0;
+      font-family: 'Segoe UI', sans-serif;
+      background-color: #f5f5f5;
     }
 
-    /* ─── NEON BORDER ─── */
-    .card {
-      position: relative;
-      width: 460px;           /* ↑ now 460px */
-      padding: 60px 50px;     /* ↑ more padding */
-      border-radius: 16px;
-      background: var(--card-bg);
-      box-shadow: 0 0 20px rgba(0,0,0,0.8);
-      text-align: center;
-      overflow: hidden;
-    }
-    .card::before {
-      content:'';
-      position:absolute;
-      top:-2px; left:-2px;
-      width:calc(100%+4px); height:calc(100%+4px);
-      background: linear-gradient(60deg, var(--accent-yellow), var(--accent-red), var(--accent-yellow));
-      background-size: 200% 200%;
-      animation: neon-glow 4s ease infinite;
-      z-index:0;
-      border-radius:18px;
-    }
-    @keyframes neon-glow {
-      0% { background-position: 0% 50%; }
-      50% { background-position: 100% 50%; }
-      100% { background-position: 0% 50%; }
-    }
-    .card > * { position: relative; z-index: 1; }
-
-    /* ─── HEADERS ─── */
-    .card h1 {
-      font-size: 2.6rem;
-      margin-bottom: 8px;
-      color: var(--accent-yellow);
-      text-shadow:
-        0 0 6px var(--accent-yellow),
-        0 0 12px var(--accent-yellow);
-      letter-spacing: .2em;
-    }
-    .card h2 {
-      font-size: 1.1rem;
-      margin-bottom: 32px;
-      color: var(--accent-red);
-      opacity: 0.9;
-    }
-
-    /* ─── SPINNER ─── */
-    .spinner {
-      width: 60px;            /* ↑ larger */
-      height: 60px;
-      border: 6px solid rgba(255,65,54,0.4);
-      border-top-color: var(--accent-yellow);
-      border-radius: 50%;
-      margin: 0 auto 40px;    /* ↑ spacing */
-      animation: spin 0.9s linear infinite;
-    }
-    @keyframes spin { to { transform: rotate(360deg); } }
-
-    /* ─── BUTTON GRID ─── */
-    .grid {
-      display: grid;
-      grid-template-columns: repeat(3,1fr);
-      gap: 16px;
-      margin-bottom: 40px;    /* ↑ spacing */
-    }
-    .grid button {
-      padding: 14px 0;        /* ↑ vertical padding */
-      border: none;
+    .container {
+      max-width: 500px;
+      margin: auto;
+      background-color: #ffffff;
+      padding: 10px;
       border-radius: 8px;
-      background: linear-gradient(135deg, var(--accent-red), var(--accent-yellow));
-      color: #05080f;
-      font-size: 1rem;        /* ↑ font */
+      box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+    }
+
+    .header {
+      background-color: #007bff;
+      color: white;
+      padding: 10px 15px;
+      border-radius: 6px 6px 0 0;
+    }
+
+    .header h1 {
+      margin: 0;
+      font-size: 18px;
+    }
+
+    .summary {
+      padding: 15px;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      font-size: 16px;
+    }
+
+    .summary .profit,
+    .summary .deposit,
+    .summary .balance {
+      color: #007bff;
       font-weight: bold;
-      cursor: pointer;
-      box-shadow: 0 0 10px rgba(255,215,0,0.6);
-      transition: transform 0.2s, box-shadow 0.2s;
-    }
-    .grid button:hover {
-      transform: translateY(-2px);
-      box-shadow: 0 0 20px rgba(255,65,54,0.9);
-    }
-    .grid i {
-      display:block;
-      font-size:1.6rem;
-      margin-bottom:6px;
     }
 
-    /* ─── PROGRESS BAR ─── */
-    .progress-wrapper {
-      margin-bottom: 16px;
-    }
-    .progress-bar {
-      width:100%;
-      height:12px;            /* ↑ taller */
-      background: rgba(255,255,255,0.1);
-      border-radius:4px;
-      overflow:hidden;
-    }
-    .progress-bar-inner {
-      width:0;
-      height:100%;
-      background: linear-gradient(90deg, var(--accent-yellow), var(--accent-red));
-      transition: width 0.3s ease;
-    }
-    .progress-text {
-      margin-top:8px;
-      text-align:right;
-      font-size:1rem;         /* ↑ font */
-      color:#bbb;
+    .trade-list {
+      border-top: 1px solid #ddd;
+      height: 600px; /* extended height */
+      overflow-y: scroll;
+      display: flex;
+      flex-direction: column-reverse;
+      scrollbar-width: none;
+      -ms-overflow-style: none;
     }
 
-    /* ─── FOOTER ─── */
-    .footer {
-      margin-top:24px;
-      font-size:0.85rem;
-      color:#777;
+    .trade-list::-webkit-scrollbar {
+      display: none;
+    }
+
+    .trade-item {
+      display: flex;
+      justify-content: space-between;
+      padding: 10px 15px;
+      border-bottom: 1px solid #eee;
+      opacity: 0;
+      transform: translateY(10px);
+      animation: fadeInUp 0.4s forwards;
+    }
+
+    @keyframes fadeInUp {
+      to {
+        opacity: 1;
+        transform: translateY(0);
+      }
+    }
+
+    .trade-item .info {
+      font-size: 14px;
+    }
+
+    .trade-item .sell {
+      color: red;
+      font-weight: bold;
+    }
+
+    .trade-item .meta {
+      text-align: right;
+      font-size: 14px;
+    }
+
+    .live-profit, .live-exit {
+      font-variant-numeric: tabular-nums;
+      display: inline-block;
+    }
+
+    .trade-item .profit {
+      color: #007bff;
+      font-weight: bold;
     }
   </style>
 </head>
 <body>
-
-  <div class="card">
-    <h1>DERIV</h1>
-    <h2>Trading Hub</h2>
-
-    <div class="spinner"></div>
-
-    <div class="grid">
-      <button><i class="fas fa-robot"></i>Free Bots</button>
-      <button><i class="fas fa-brain"></i>AI Bots</button>
-      <button><i class="fas fa-chart-line"></i>Analysis</button>
-      <button><i class="fas fa-magic"></i>Smart AI</button>
-      <button><i class="fas fa-copy"></i>Copy Trade</button>
-      <button><i class="fas fa-rss"></i>Signals</button>
+  <div class="container">
+    <div class="header">
+      <h1>📈 Trade History</h1>
+      <p>All symbols</p>
     </div>
 
-    <div class="progress-wrapper">
-      <div class="progress-bar">
-        <div class="progress-bar-inner" id="bar"></div>
-      </div>
-      <div class="progress-text" id="pct">0%</div>
+    <div class="summary">
+      <div>Profit: <span class="profit" id="profit">0.00</span></div>
+      <div>Deposit: <span class="deposit">200.00</span></div>
+      <div>Balance: <span class="balance" id="balance">200.00</span></div>
     </div>
 
-    <div class="footer">
-      © 2023 Binarytool | Powered by Deriv
+    <div class="trade-list" id="tradeList">
+      <!-- Trades will be added here -->
     </div>
   </div>
 
   <script>
-    let pct = 0;
-    const bar = document.getElementById('bar');
-    const pctText = document.getElementById('pct');
-    const timer = setInterval(() => {
-      pct++;
-      bar.style.width = pct + '%';
-      pctText.textContent = pct + '%';
-      if (pct >= 100) {
-        clearInterval(timer);
-        window.location.href = 'https://binery555.github.io/loging-with-pagematcgesdiffer-/';
-      }
-    }, 40);
-  </script>
+    const trades = [
+      { entry: 1765.01, exit: 1758.71, profit: 6.30 },
+      { entry: 1765.14, exit: 1758.73, profit: 6.41 },
+      { entry: 1765.32, exit: 1758.71, profit: 6.61 },
+      { entry: 1765.46, exit: 1758.82, profit: 6.64 },
+      { entry: 1765.60, exit: 1758.80, profit: 6.80 },
+      { entry: 1765.79, exit: 1758.81, profit: 6.98 },
+      { entry: 1766.05, exit: 1758.77, profit: 7.28 },
+      { entry: 1766.16, exit: 1758.66, profit: 7.50 },
+      { entry: 1766.26, exit: 1758.53, profit: 7.73 },
+      { entry: 1766.35, exit: 1758.32, profit: 8.03 },
+      { entry: 1766.62, exit: 1758.32, profit: 8.30 },
+      { entry: 1766.87, exit: 1758.21, profit: 8.66 },
+      { entry: 1767.02, exit: 1758.33, profit: 7.19 },
+      { entry: 1767.16, exit: 1758.52, profit: 8.21 },
+      { entry: 1767.38, exit: 1758.41, profit: 8.39 },
+      { entry: 1767.59, exit: 1758.25, profit: 8.57 },
+      { entry: 1767.80, exit: 1758.10, profit: 8.71 },
+      { entry: 1768.00, exit: 1758.05, profit: 8.82 }
+    ];
 
+    const tradeList = document.getElementById("tradeList");
+    const profitEl = document.getElementById("profit");
+    const balanceEl = document.getElementById("balance");
+    const deposit = 200;
+
+    function createTradeItem(entry, exit, profitAmount) {
+      const time = "2022.07.29 12:57";
+      const item = document.createElement("div");
+      item.className = "trade-item";
+
+      item.innerHTML = `
+        <div class="info">
+          <strong>XAUUSD</strong>, <span class="sell">sell 0.01</span><br>
+          ${entry.toFixed(5)} → <span class="live-exit" data-value="${exit}">${exit.toFixed(5)}</span>
+        </div>
+        <div class="meta">
+          <div>${time}</div>
+          <div class="profit live-profit" data-value="${profitAmount}">${profitAmount.toFixed(2)}</div>
+        </div>
+      `;
+
+      tradeList.prepend(item);
+    }
+
+    // Load all trades
+    trades.forEach(t => createTradeItem(t.entry, t.exit, t.profit));
+
+    function animateLiveNumbers() {
+      let totalProfit = 0;
+
+      document.querySelectorAll('.live-exit').forEach(el => {
+        let val = parseFloat(el.getAttribute('data-value'));
+        val += (Math.random() - 0.5) * 0.01;
+        el.setAttribute('data-value', val);
+        el.textContent = val.toFixed(5);
+      });
+
+      document.querySelectorAll('.live-profit').forEach(el => {
+        let val = parseFloat(el.getAttribute('data-value'));
+        val += (Math.random() - 0.5) * 0.1;
+        val = parseFloat(val.toFixed(2));
+        el.setAttribute('data-value', val);
+        el.textContent = val.toFixed(2);
+        totalProfit += val;
+      });
+
+      profitEl.textContent = totalProfit.toFixed(2);
+      balanceEl.textContent = (deposit + totalProfit).toFixed(2);
+    }
+
+    setInterval(animateLiveNumbers, 1000);
+  </script>
 </body>
 </html>
