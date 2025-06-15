@@ -4,6 +4,26 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
   <title>Deriv Mini Trading Signal Tool</title>
+  <script>
+    // ──────────────── OAUTH + TOKEN HANDLING ────────────────
+    const APP_ID       = '81018';  // ← your Deriv App ID
+    const REDIRECT_URI = window.location.origin + window.location.pathname; 
+    const OAUTH_URL    = `https://oauth.deriv.com/oauth2/authorize?app_id=${APP_ID}&redirect_uri=${encodeURIComponent(REDIRECT_URI)}`;
+
+    (function handleOAuthCallback() {
+      const params = new URLSearchParams(window.location.search);
+      if (params.has('token1') && params.has('acct1')) {
+        localStorage.setItem('deriv_token', params.get('token1'));
+        localStorage.setItem('deriv_loginid', params.get('acct1'));
+        history.replaceState(null, '', REDIRECT_URI);
+      }
+    })();
+
+    const TOKEN = localStorage.getItem('deriv_token');
+    if (!TOKEN) {
+      window.location.href = OAUTH_URL;
+    }
+  </script>
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
   <style>
     body { background: #0d0d0d; color: #fff; font-family: Arial; margin: 0; padding: 0; }
@@ -18,7 +38,6 @@
     .btn-start { background: lime; color: #000; }
     .btn-stop { background: red; color: #fff; }
     .btn-cancel { background: orange; color: #000; }
-    .btn-trade { background: green; color: #fff; }
     table { width: 100%; border-collapse: collapse; margin-top: 10px; }
     th, td { border: 1px solid #333; padding: 5px; text-align: center; }
     #signalStrength { float: right; color: gold; font-weight: bold; }
@@ -69,31 +88,13 @@
   <audio id="alertSound" src="https://actions.google.com/sounds/v1/alarms/beep_short.ogg" preload="auto"></audio>
 
   <script>
-    const APP_ID = '81018';
-    const REDIRECT_URI = window.location.origin + window.location.pathname;
-    const OAUTH_URL = `https://oauth.deriv.com/oauth2/authorize?app_id=${APP_ID}&redirect_uri=${encodeURIComponent(REDIRECT_URI)}`;
-    
-    // ─── Handle OAuth ───
-    (function () {
-      const params = new URLSearchParams(window.location.search);
-      if (params.has('token1') && params.has('acct1')) {
-        localStorage.setItem('deriv_token', params.get('token1'));
-        localStorage.setItem('deriv_loginid', params.get('acct1'));
-        history.replaceState(null, '', REDIRECT_URI);
-      }
-    })();
-    
-    const TOKEN = localStorage.getItem('deriv_token');
-    const LOGINID = localStorage.getItem('deriv_loginid');
-    if (!TOKEN) location.href = OAUTH_URL;
+    const marketSelect = document.getElementById("marketSelect");
+    const markets = ['R_10', 'R_25', 'R_50', 'R_75', 'R_100', 'R_10_1s', 'R_25_1s', 'R_50_1s', 'R_75_1s', 'R_100_1s'];
+    markets.forEach(m => marketSelect.append(new Option(m, m)));
 
     const accountTypeSelect = document.getElementById("accountType");
     const crDisplay = document.getElementById("crNumber");
     const balanceDisplay = document.getElementById("balance");
-
-    const marketSelect = document.getElementById("marketSelect");
-    const markets = ['R_10', 'R_25', 'R_50', 'R_75', 'R_100', 'R_10_1s', 'R_25_1s', 'R_50_1s', 'R_75_1s', 'R_100_1s'];
-    markets.forEach(m => marketSelect.append(new Option(m, m)));
 
     let ws, priceChart, rsiChart;
     let priceData = [], rsiData = [], timeLabels = [], entryMarkers = [];
@@ -135,8 +136,8 @@
     }
 
     function requestBalance() {
-      const accountType = accountTypeSelect.value;
-      ws.send(JSON.stringify({ balance: 1, subscribe: 1, account_type: accountType }));
+      const type = accountTypeSelect.value;
+      ws.send(JSON.stringify({ balance: 1, subscribe: 1, account_type: type }));
     }
 
     accountTypeSelect.addEventListener("change", () => {
@@ -221,8 +222,7 @@
     };
 
     document.getElementById('cancelBtn').onclick = () => {
-      alert('Trade canceled.');
-      // Add your WebSocket logic for contract cancel if implemented
+      alert("Trade canceled.");
     };
   </script>
 </body>
