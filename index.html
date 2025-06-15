@@ -29,7 +29,7 @@
 
   <div class="info">
     <div>Login ID: <span id="loginId">-</span></div>
-    <div>Balance: <span id="balance">0.00</span> <button id="toggleBalance">Real</button></div>
+    <div>Balance: <span id="balance">0.00</span></div>
     <div>CR Number: <span id="crNumber">-</span></div>
   </div>
 
@@ -75,29 +75,45 @@
       </div>
     </div>
     <div class="right-panel">
-      <!-- Placeholder for additional controls or stats -->
+      <!-- Additional controls or stats -->
     </div>
   </div>
 
   <audio id="alertSound" src="https://actions.google.com/sounds/v1/alarms/beep_short.ogg" preload="auto"></audio>
 
-  <!-- OAuth & WebSocket Setup -->
   <script>
-    const APP_ID = '81018';
-    const REDIRECT_URI = window.location.origin + window.location.pathname;
-    const OAUTH_URL = `https://oauth.deriv.com/oauth2/authorize?app_id=${APP_ID}&redirect_uri=${encodeURIComponent(REDIRECT_URI)}`;
+    // ──────────────── OAUTH + TOKEN HANDLING ────────────────
+    const APP_ID       = '81018';  // ← your Deriv App ID
+    const REDIRECT_URI = window.location.origin + window.location.pathname; 
+    const OAUTH_URL    = `https://oauth.deriv.com/oauth2/authorize?app_id=${APP_ID}&redirect_uri=${encodeURIComponent(REDIRECT_URI)}`;
+
+    // If the URL contains an OAuth callback with tokens, grab token1 & acct1
     (function handleOAuthCallback() {
       const params = new URLSearchParams(window.location.search);
       if (params.has('token1') && params.has('acct1')) {
         localStorage.setItem('deriv_token', params.get('token1'));
         localStorage.setItem('deriv_loginid', params.get('acct1'));
+        // Remove query params from URL
         history.replaceState(null, '', REDIRECT_URI);
       }
     })();
+
+    // If no token is stored, send user to Deriv OAuth
     const TOKEN = localStorage.getItem('deriv_token');
-    if (!TOKEN) window.location.href = OAUTH_URL;
-    const LOGIN_ID = localStorage.getItem('deriv_loginid');
-    document.getElementById('loginId').innerText = LOGIN_ID || '-';
+    if (!TOKEN) {
+      window.location.href = OAUTH_URL;
+    }
+
+    // ──────────────── SIDEBAR ROUTING ────────────────
+    document.querySelectorAll('.sidebar-item').forEach(el => {
+      el.onclick = () => {
+        document.querySelectorAll('.sidebar-item').forEach(i => i.classList.remove('active'));
+        el.classList.add('active');
+        document.querySelectorAll('[id^="content-"]').forEach(c => c.classList.add('hidden'));
+        document.getElementById('content-' + el.dataset.section).classList.remove('hidden');
+      };
+    });
+    document.getElementById('loginId').innerText = localStorage.getItem('deriv_loginid') || '-';
 
     const WS_URL = `wss://ws.binaryws.com/websockets/v3?app_id=${APP_ID}`;
     let ws;
@@ -110,60 +126,50 @@
       };
       ws.onmessage = ({data}) => {
         const msg = JSON.parse(data);
-        if (msg.balance) updateBalance(msg.balance.balance);
+        if (msg.balance) document.getElementById('balance').innerText = parseFloat(msg.balance.balance).toFixed(2);
         if (msg.tick) handleTick(msg.tick);
         if (msg.proposal_open_contract) handleOpenContract(msg.proposal_open_contract);
       };
     }
-    function getBalance() {
-      ws.send(JSON.stringify({ balance: 1 }));
-    }
-    function updateBalance(bal) {
-      document.getElementById('balance').innerText = parseFloat(bal).toFixed(2);
-    }
-    const markets = ['R_10', 'R_25', 'R_50', 'R_75', 'R_100'];
-    const marketSelect = document.getElementById('marketSelect');
-    markets.forEach(m => marketSelect.append(new Option(m, m)));
+    function getBalance() { ws.send(JSON.stringify({ balance: 1 })); }
+    const markets = ['R_10','R_25','R_50','R_75','R_100'];
+    markets.forEach(m => document.getElementById('marketSelect').append(new Option(m,m)));
 
-    // Charts & Data
     let priceChart, rsiChart, priceData=[], rsiData=[], labels=[];
     function initCharts() {
       const pCtx = document.getElementById('priceChart').getContext('2d');
       const rCtx = document.getElementById('rsiChart').getContext('2d');
-      priceChart = new Chart(pCtx, { type:'line', data:{labels:[],datasets:[{label:'Price',data:[],borderColor:'#0ff',borderWidth:2,pointRadius:0}]},options:{animation:false,scales:{x:{display:false}}} });
-      rsiChart = new Chart(rCtx, { type:'line', data:{labels:[],datasets:[{label:'RSI',data:[],borderColor:'#ff0',borderWidth:2,pointRadius:0}]},options:{animation:false,scales:{x:{display:false},y:{min:0,max:100}}} });
+      priceChart = new Chart(pCtx,{type:'line',data:{labels:[],datasets:[{label:'Price',data:[],borderColor:'#0ff',borderWidth:2,pointRadius:0}]},options:{animation:false,scales:{x:{display:false}}}});
+      rsiChart = new Chart(rCtx,{type:'line',data:{labels:[],datasets:[{label:'RSI',data:[],borderColor:'#ff0',borderWidth:2,pointRadius:0}]},options:{animation:false,scales:{x:{display:false},y:{min:0,max:100}}}});
     }
 
-    let entryMarkers=[];
-    function subscribeTicks(){ ws.send(JSON.stringify({ ticks: marketSelect.value })); }
+    function subscribeTicks(){ ws.send(JSON.stringify({ ticks: document.getElementById('marketSelect').value })); }
     function handleTick(tick){ const price=tick.quote,time=new Date(tick.epoch*1000).toLocaleTimeString();
       labels.push(time); priceData.push(price);
       if(priceData.length>100){ labels.shift(); priceData.shift(); rsiData.shift(); }
-      const rsi = calcRSI(priceData); rsiData.push(rsi);
-      updateCharts(); analyzeAuto(price,rsi,time);
+      const rsi=calcRSI(priceData); rsiData.push(rsi);
+      updateCharts(); publishSignal(rsi,price,time);
     }
-    function calcRSI(data,p=14){ if(data.length<p+1) return 50; let g=0,l=0; for(let i=data.length-p;i<data.length;i++){ let d=data[i]-data[i-1]; if(d>0) g+=d; else l-=d;} let rs=g/(l||1); return 100-100/(1+rs);}    
+    function calcRSI(data,p=14){ if(data.length<p+1) return 50; let g=0,l=0; for(let i=data.length-p;i<data.length;i++){ let d=data[i]-data[i-1]; d>0?g+=d:l-=d;} let rs=g/(l||1); return 100-100/(1+rs); }
     function updateCharts(){ priceChart.data.labels=labels; priceChart.data.datasets[0].data=priceData; priceChart.update(); rsiChart.data.labels=labels; rsiChart.data.datasets[0].data=rsiData; rsiChart.update(); }
 
-    // Auto Analysis & Signal Pub
-    function analyzeAuto(price,rsi,time){ if(priceData.length<20) return; let avg=priceData.slice(-5).reduce((a,b)=>a+b)/5; let sig=null,conf=0;
-      if(rsi<30&&price<avg){sig='Buy';conf=5;}else if(rsi>70&&price>avg){sig='Sell';conf=5;} if(sig) publishSignal(sig,conf,price,time);
+    function publishSignal(rsi,price,time){ let avg=priceData.slice(-5).reduce((a,b)=>a+b)/5; let sig= rsi<30&&price<avg?'Buy': rsi>70&&price>avg?'Sell':null; let conf=sig?'--':0;
+      if(sig){ document.getElementById('signal').innerHTML=`<span style="color:${sig==='Buy'?'#0f0':'#f00'}">${sig}</span>`;
+        const row=`<tr><td>${time}</td><td>${document.getElementById('marketSelect').value}</td><td>${sig}</td><td>--</td><td class="entry">${price.toFixed(2)}</td><td class="stoploss">${(sig==='Buy'?price-0.3:price+0.3).toFixed(2)}</td><td>${document.getElementById('durationSelect').value}</td></tr>`;
+        document.getElementById('historyBody').innerHTML=row+document.getElementById('historyBody').innerHTML;
+      }
     }
-    function publishSignal(sig,conf,price,time){ document.getElementById('signal').innerHTML=`<span style="color:${sig==='Buy'? '#0f0':'#f00'}">${sig} (${conf} Conf)</span>`;
-      document.getElementById('alertSound').play(); let row=`<tr><td>${time}</td><td>${marketSelect.value}</td><td>${sig}</td><td>${conf}</td><td class="entry">${price.toFixed(2)}</td><td class="stoploss">${(sig==='Buy'?price-0.3:price+0.3).toFixed(2)}</td><td>${document.getElementById('durationSelect').value}</td></tr>`;
-      document.getElementById('historyBody').innerHTML = row + document.getElementById('historyBody').innerHTML; }
 
-    // Trading Actions
-    function buy(type){ const buyRequest={buy:{contract_type: type, market: marketSelect.value, amount: parseFloat(stakeInput.value), duration: parseInt(durationSelect.value), basis:'stake', currency:'USD'}}; ws.send(JSON.stringify(buyRequest)); }
-    function handleOpenContract(data){ let time=new Date().toLocaleTimeString(); let status=data.status; let type = data.action; let stake=parseFloat(data.buy_price); let dur=data.contract_info.duration; let row=`<tr><td>${time}</td><td>${type}</td><td>${data.contract_info.underlying}</td><td>${stake.toFixed(2)}</td><td>${dur.units}</td><td>${status}</td></tr>`;
-      document.getElementById('tradeBody').innerHTML = row + document.getElementById('tradeBody').innerHTML; document.getElementById('cancelBtn').disabled=false; }
-
+    function buy(type){ ws.send(JSON.stringify({ buy:{ contract_type:type, market:document.getElementById('marketSelect').value, amount:parseFloat(document.getElementById('stakeInput').value), duration:parseInt(document.getElementById('durationSelect').value), basis:'stake', currency:'USD' }})); }
+    function handleOpenContract(data){ const time=new Date().toLocaleTimeString(); const status=data.status; const type=data.action; const stake=parseFloat(data.buy_price); const dur=data.contract_info.duration.units;
+      const row=`<tr><td>${time}</td><td>${type}</td><td>${data.contract_info.underlying}</td><td>${stake.toFixed(2)}</td><td>${dur}</td><td>${status}</td></tr>`;
+      document.getElementById('tradeBody').innerHTML=row+document.getElementById('tradeBody').innerHTML; document.getElementById('cancelBtn').disabled=false;
+    }
     document.getElementById('riseBtn').onclick=()=>buy('CALL');
     document.getElementById('fallBtn').onclick=()=>buy('PUT');
     document.getElementById('cancelBtn').onclick=()=>{ ws.send(JSON.stringify({forget:1})); document.getElementById('cancelBtn').disabled=true; };
 
-    // Init on load
-    window.onload = ()=>{ initCharts(); connect(); };
+    window.onload=()=>{ initCharts(); connect(); };
   </script>
 </body>
 </html>
