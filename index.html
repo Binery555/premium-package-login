@@ -15,7 +15,7 @@
     .controls { margin-bottom: 20px; display: flex; align-items: center; gap: 10px; }
     button { padding: 8px 12px; background: #0ff; color: #000; border: none; border-radius: 5px; cursor: pointer; }
     select { padding: 4px; border-radius: 4px; }
-    .trade-history, .history { margin-top: 20px; }
+    .history, .trade-history { margin-top: 20px; }
     table { width: 100%; border-collapse: collapse; margin-top: 10px; }
     th, td { border: 1px solid #333; padding: 5px; text-align: center; }
     .entry { color: #0f0; }
@@ -31,10 +31,7 @@
     <button id="startBtn">Start</button>
     <button id="stopBtn" disabled>Stop</button>
     <button id="cancelBtn" disabled>Cancel Trade</button>
-    <label>Account:
-      <select id="accountType"><option value="demo">Demo</option><option value="real">Real</option></select>
-    </label>
-    <span id="balanceDisplay">Balance: --</span>
+    <span>Balance: <span id="balanceDisplay">--</span></span>
     <span>CR: <span id="crNumber">--</span></span>
     <span id="signalStrength">Waiting...</span>
   </div>
@@ -70,8 +67,8 @@
 
   <audio id="alertSound" src="https://actions.google.com/sounds/v1/alarms/beep_short.ogg" preload="auto"></audio>
 
-  <!-- OAuth + Token Handling -->
   <script>
+    // OAuth + Token Handling
     const APP_ID = '81018';
     const REDIRECT_URI = window.location.origin + window.location.pathname;
     const OAUTH_URL = `https://oauth.deriv.com/oauth2/authorize?app_id=${APP_ID}&redirect_uri=${encodeURIComponent(REDIRECT_URI)}`;
@@ -84,9 +81,7 @@
       }
     })();
     const TOKEN = localStorage.getItem('deriv_token');
-    if (!TOKEN) {
-      window.location.href = OAUTH_URL;
-    }
+    if (!TOKEN) window.location.href = OAUTH_URL;
   </script>
 
   <script>
@@ -98,23 +93,26 @@
 
     let ws, priceChart, rsiChart;
     let priceData = [], rsiData = [], timeLabels = [], entryMarkers = [];
-    let demoBalance = '--', realBalance = '--';
-    let tradeCount = 0;
-
-    document.getElementById('accountType').onchange = updateBalanceDisplay;
+    let realBalance = '--';
 
     function initCharts() {
       const priceCtx = document.getElementById('priceChart').getContext('2d');
       const rsiCtx = document.getElementById('rsiChart').getContext('2d');
       priceChart = new Chart(priceCtx, {
         type: 'line',
-        data: { labels: [], datasets: [{ label: 'Price', data: [], borderColor: '#0ff', borderWidth: 2, pointRadius:0 },{ label:'Entries', data:[], type:'scatter', backgroundColor:'#0f0', pointStyle:'triangle', pointRadius:8, showLine:false }] },
-        options: { animation:false, scales:{ x:{ display:false } } }
+        data: {
+          labels: [],
+          datasets: [
+            { label: 'Price', data: [], borderColor: '#0ff', borderWidth: 2, pointRadius: 0 },
+            { label: 'Entries', data: [], type: 'scatter', backgroundColor: '#0f0', pointStyle: 'triangle', pointRadius: 8, showLine: false }
+          ]
+        },
+        options: { animation: false, scales: { x: { display: false } } }
       });
       rsiChart = new Chart(rsiCtx, {
-        type:'line',
-        data:{ labels:[], datasets:[{ label:'RSI', data:[], borderColor:'#ff0', borderWidth:2, pointRadius:0 }] },
-        options:{ animation:false, scales:{ x:{ display:false }, y:{ min:0, max:100 } } }
+        type: 'line',
+        data: { labels: [], datasets: [{ label: 'RSI', data: [], borderColor: '#ff0', borderWidth: 2, pointRadius: 0 }] },
+        options: { animation: false, scales: { x: { display: false }, y: { min: 0, max: 100 } } }
       });
     }
 
@@ -122,56 +120,50 @@
       ws = new WebSocket(WS_URL);
       ws.onopen = () => {
         ws.send(JSON.stringify({ authorize: API_TOKEN }));
-        subscribe();
-        requestBalances();
+        subscribeTicks();
+        subscribeBalance();
         document.getElementById('crNumber').innerText = localStorage.getItem('deriv_loginid') || '--';
       };
       ws.onmessage = ({ data }) => {
         const msg = JSON.parse(data);
-        if (msg.tick) updateData(msg.tick);
-        if (msg.balance) updateBalances(msg.balance);
+        if (msg.tick) handleTick(msg.tick);
+        if (msg.balance) handleBalance(msg.balance);
       };
     }
 
-    function subscribe() { ws.send(JSON.stringify({ ticks: marketSelect.value })); }
-
-    function requestBalances() {
-      // real account
-      ws.send(JSON.stringify({ balance:1, subscribe:1 }));
-      // demo account
-      ws.send(JSON.stringify({ balance:1, subscribe:1, account_type:'demo' }));
+    function subscribeTicks() {
+      ws.send(JSON.stringify({ ticks: marketSelect.value }));
+    }
+    function subscribeBalance() {
+      ws.send(JSON.stringify({ balance: 1, subscribe: 1 }));
     }
 
-    function updateBalances(bal) {
-      if (bal.account_type === 'demo') demoBalance = bal.balance.toFixed(2);
-      else realBalance = bal.balance.toFixed(2);
-      updateBalanceDisplay();
+    function handleBalance(bal) {
+      realBalance = parseFloat(bal.balance).toFixed(2);
+      document.getElementById('balanceDisplay').innerText = realBalance;
     }
 
-    function updateBalanceDisplay() {
-      const type = document.getElementById('accountType').value;
-      document.getElementById('balanceDisplay').innerText = 'Balance: ' + (type==='demo' ? demoBalance : realBalance);
-    }
-
-    function updateData(tick) {
+    function handleTick(tick) {
       const price = tick.quote;
-      const time = new Date(tick.epoch*1000).toLocaleTimeString();
+      const time = new Date(tick.epoch * 1000).toLocaleTimeString();
       priceData.push(price); timeLabels.push(time);
-      if (priceData.length>100) { priceData.shift(); timeLabels.shift(); rsiData.shift(); entryMarkers.shift(); }
+      if (priceData.length > 100) { priceData.shift(); timeLabels.shift(); rsiData.shift(); entryMarkers.shift(); }
       const rsi = calculateRSI(priceData);
       rsiData.push(rsi);
       updateCharts();
       autoAnalyze(price, rsi);
     }
 
-    function calculateRSI(data, period=14) {
-      if (data.length<period+1) return 50;
-      let gains=0, losses=0;
-      for (let i=data.length-period; i<data.length; i++) {
-        const diff = data[i]-data[i-1]; if (diff>0) gains+=diff; else losses-=diff;
+    function calculateRSI(data, period = 14) {
+      if (data.length < period + 1) return 50;
+      let gains = 0, losses = 0;
+      for (let i = data.length - period; i < data.length; i++) {
+        const diff = data[i] - data[i - 1];
+        if (diff > 0) gains += diff;
+        else losses -= diff;
       }
-      const rs = gains/(losses||1);
-      return 100 - 100/(1+rs);
+      const rs = gains / (losses || 1);
+      return 100 - 100 / (1 + rs);
     }
 
     function updateCharts() {
@@ -185,27 +177,27 @@
     }
 
     function autoAnalyze(price, rsi) {
-      if (priceData.length<20) return;
+      if (priceData.length < 20) return;
       const recent = priceData.slice(-5);
-      const avg = recent.reduce((a,b)=>a+b)/5;
-      let signal=null, conf=0, dur=5;
-      if (rsi<30 && price<avg) { signal='Buy'; conf=5; dur=3; }
-      else if (rsi<40 && price<avg) { signal='Buy'; conf=4; dur=2; }
-      else if (rsi<50 && price<avg) { signal='Buy'; conf=2; dur=1; }
-      else if (rsi>70 && price>avg) { signal='Sell'; conf=5; dur=3; }
-      else if (rsi>60 && price>avg) { signal='Sell'; conf=4; dur=2; }
-      else if (rsi>55 && price>avg) { signal='Sell'; conf=2; dur=1; }
+      const avg = recent.reduce((a, b) => a + b) / 5;
+      let signal = null, conf = 0, dur = 5;
+      if (rsi < 30 && price < avg) { signal = 'Buy'; conf = 5; dur = 3; }
+      else if (rsi < 40 && price < avg) { signal = 'Buy'; conf = 4; dur = 2; }
+      else if (rsi < 50 && price < avg) { signal = 'Buy'; conf = 2; dur = 1; }
+      else if (rsi > 70 && price > avg) { signal = 'Sell'; conf = 5; dur = 3; }
+      else if (rsi > 60 && price > avg) { signal = 'Sell'; conf = 4; dur = 2; }
+      else if (rsi > 55 && price > avg) { signal = 'Sell'; conf = 2; dur = 1; }
       if (signal) {
-        const sl = signal==='Buy'?price-0.3:price+0.3;
+        const sl = signal === 'Buy' ? price - 0.3 : price + 0.3;
         publishSignal(signal, conf, price, sl, dur);
-        if (conf===5) simulateTrade(signal, price, dur);
+        if (conf === 5) simulateTrade(signal, price, dur);
       }
     }
 
     function publishSignal(signal, conf, entry, sl, dur) {
       const now = new Date().toLocaleTimeString();
       const mkt = marketSelect.value;
-      document.getElementById('signal').innerHTML = `<span style="color:${signal==='Buy'?'#0f0':'#f00'}">${signal} (${conf} Conf)</span>`;
+      document.getElementById('signal').innerHTML = `<span style="color:${signal === 'Buy' ? '#0f0' : '#f00'}">${signal} (${conf} Conf)</span>`;
       document.getElementById('signalStrength').innerText = `${conf} Conformation`;
       document.getElementById('alertSound').play();
       const row = `<tr><td>${now}</td><td>${mkt}</td><td>${signal}</td><td>${conf}</td><td class="entry">${entry.toFixed(2)}</td><td class="stoploss">${sl.toFixed(2)}</td><td>${dur}</td></tr>`;
@@ -213,15 +205,17 @@
       entryMarkers.push({ x: now, y: entry });
     }
 
+    let tradeCount = 0;
     function simulateTrade(signal, entry, dur) {
-      tradeCount++; document.getElementById('cancelBtn').disabled = false;
+      tradeCount++;
+      document.getElementById('cancelBtn').disabled = false;
       setTimeout(() => {
-        const final = priceData[priceData.length-1];
-        const res = (signal==='Buy'&&final>entry)||(signal==='Sell'&&final<entry)?'Win':'Loss';
+        const final = priceData[priceData.length - 1];
+        const res = (signal === 'Buy' && final > entry) || (signal === 'Sell' && final < entry) ? 'Win' : 'Loss';
         const row = `<tr><td>${tradeCount}</td><td>${signal}</td><td>${entry.toFixed(2)}</td><td>${final.toFixed(2)}</td><td style="color:${res==='Win'?'#0f0':'#f00'}">${res}</td></tr>`;
         document.getElementById('tradeHistoryBody').innerHTML = row + document.getElementById('tradeHistoryBody').innerHTML;
         document.getElementById('cancelBtn').disabled = true;
-      }, dur*1000);
+      }, dur * 1000);
     }
 
     document.getElementById('cancelBtn').onclick = () => {
