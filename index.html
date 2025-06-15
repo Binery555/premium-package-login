@@ -7,115 +7,304 @@
   <title>Deriv Mini Trading Signal Tool</title>
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
   <style>
-    body {
-      background: #0d0d0d;
-      color: #fff;
-      font-family: Arial, sans-serif;
-      margin: 0;
-      padding: 0;
-    }
-    .container {
-      padding: 20px;
-      display: flex;
-      gap: 20px;
-    }
+    body { background: #0d0d0d; color: #fff; font-family: Arial, sans-serif; margin: 0; padding: 0; }
+    .container { padding: 20px; display: flex; gap: 20px; }
     .left-panel { flex: 3; }
     .right-panel { flex: 1; }
-    h1 {
-      text-align: center;
-      color: #0ff;
-      margin-bottom: 10px;
-    }
+    h1 { text-align: center; color: #0ff; margin-bottom: 10px; }
     .controls { margin-bottom: 20px; }
-    button {
-      padding: 8px 12px;
-      background: #0ff;
-      color: #000;
-      border: none;
-      border-radius: 5px;
-      cursor: pointer;
-      margin-right: 10px;
-    }
-    table {
-      width: 100%;
-      border-collapse: collapse;
-      margin-top: 10px;
-    }
-    th, td {
-      border: 1px solid #333;
-      padding: 5px;
-      text-align: center;
-    }
+    button { padding: 8px 12px; border: none; border-radius: 5px; cursor: pointer; margin-right: 8px; }
+    #riseBtn { background: #0f0; color: #000; }
+    #fallBtn { background: #f00; color: #000; }
+    #cancelBtn { background: #fff; color: #000; }
+    select { padding: 6px; margin-right: 8px; }
+    table { width: 100%; border-collapse: collapse; margin-top: 10px; }
+    th, td { border: 1px solid #333; padding: 5px; text-align: center; }
     .entry { color: #0f0; }
     .stoploss { color: #f00; }
-    #signalStrength {
-      text-align: right;
-      font-size: 1.2em;
-      color: gold;
-      margin-top: 10px;
-    }
-    .chart-box {
-      background: #1a1a1a;
-      padding: 10px;
-      border-radius: 10px;
-      margin-bottom: 20px;
-    }
-    canvas {
-      display: block;
-      max-width: 100%;
-      margin: auto;
-    }
-    .balance-bar {
-      display: flex;
-      justify-content: space-between;
-      padding: 10px;
-      background: #111;
-      border-bottom: 1px solid #222;
-    }
+    #signalStrength { text-align: right; font-size: 1.2em; color: gold; margin-top: 10px; }
+    .chart-box { background: #1a1a1a; padding: 10px; border-radius: 10px; margin-bottom: 20px; }
+    canvas { display: block; max-width: 100%; margin: auto; }
+    .account-info { margin-bottom: 20px; }
+    .account-info span { display: block; margin-bottom: 5px; }
+    .history-section { margin-top: 30px; }
   </style>
 </head>
 <body>
-  <div class="balance-bar">
-    <div>CR Number: <span id="crNumber">Loading...</span></div>
-    <div>Real Balance: $<span id="realBalance">0.00</span></div>
-  </div>
   <h1>Deriv Mini Trading Signal Tool</h1>
   <div class="container">
+    <!-- LEFT: Charts & Signal History -->
     <div class="left-panel">
       <div class="controls">
-        <label>Stake: <input type="number" id="stakeInput" value="0.35" step="0.01" style="width: 60px;"></label>
-        <label>Duration (min): <input type="number" id="durationInput" value="1" style="width: 60px;"></label>
-        <button id="riseBtn">Rise</button>
-        <button id="fallBtn">Fall</button>
-        <button id="cancelBtn">Cancel</button>
+        <button id="startBtn">Start</button>
+        <button id="stopBtn" disabled>Stop</button>
         <span id="signalStrength">Waiting...</span>
       </div>
-      <div class="chart-box">
-        <canvas id="priceChart" height="200"></canvas>
-      </div>
-      <div class="chart-box">
-        <canvas id="rsiChart" height="100"></canvas>
-      </div>
-      <div id="signal" style="font-size: 1.4em; margin-top: 10px;"></div>
-      <div class="history">
+
+      <div class="chart-box"><canvas id="priceChart" height="200"></canvas></div>
+      <div class="chart-box"><canvas id="rsiChart" height="100"></canvas></div>
+      <div id="signal" style="font-size:1.4em; margin-top:10px;"></div>
+
+      <div class="history-section">
         <h3>Signal History</h3>
         <table>
           <thead><tr><th>Time</th><th>Market</th><th>Signal</th><th>Conf</th><th>Entry</th><th>SL</th><th>Dur</th></tr></thead>
           <tbody id="historyBody"></tbody>
         </table>
-        <h3>Trade History (Real Only)</h3>
+      </div>
+    </div>
+
+    <!-- RIGHT: Account & Trade Controls -->
+    <div class="right-panel">
+      <div class="account-info">
+        <span>Login ID: <strong id="loginId">–</strong></span>
+        <span>Balance: <strong id="balance">–</strong> USD</span>
+      </div>
+
+      <label>Market:</label>
+      <select id="marketSelect"></select><br/><br/>
+      <label>Stake (USD):</label>
+      <select id="stakeSelect">
+        <option>1</option><option>5</option><option>10</option><option>25</option><option>50</option>
+      </select>
+      <label>Duration (min):</label>
+      <select id="durationSelect">
+        <option>1</option><option>2</option><option>3</option><option>5</option><option>10</option>
+      </select>
+
+      <div style="margin:20px 0;">
+        <button id="riseBtn">Rise</button>
+        <button id="fallBtn">Fall</button>
+        <button id="cancelBtn">Cancel</button>
+      </div>
+
+      <div class="history-section">
+        <h3>Trade History</h3>
         <table>
-          <thead><tr><th>Time</th><th>Type</th><th>Entry</th><th>Duration</th><th>Result</th></tr></thead>
+          <thead>
+            <tr><th>Time</th><th>ID</th><th>Market</th><th>Type</th><th>Stake</th><th>Dur</th><th>Status</th></tr>
+          </thead>
           <tbody id="tradeHistoryBody"></tbody>
         </table>
       </div>
     </div>
-    <div class="right-panel">
-      <label>Market:</label>
-      <select id="marketSelect"></select>
-    </div>
   </div>
+
   <audio id="alertSound" src="https://actions.google.com/sounds/v1/alarms/beep_short.ogg" preload="auto"></audio>
-  <!-- Add your script below with OAuth, CR fetch, live balance, and trade logic -->
+
+  <script>
+  // ──────────────── OAUTH + TOKEN HANDLING ────────────────
+  const APP_ID       = '81018'; // ← your Deriv App ID
+  const REDIRECT_URI = window.location.origin + window.location.pathname;
+  const OAUTH_URL    = `https://oauth.deriv.com/oauth2/authorize?app_id=${APP_ID}&redirect_uri=${encodeURIComponent(REDIRECT_URI)}`;
+
+  (function handleOAuthCallback() {
+    const params = new URLSearchParams(window.location.search);
+    if (params.has('token1') && params.has('acct1')) {
+      localStorage.setItem('deriv_token', params.get('token1'));
+      localStorage.setItem('deriv_loginid', params.get('acct1'));
+      history.replaceState(null, '', REDIRECT_URI);
+    }
+  })();
+
+  const API_TOKEN = localStorage.getItem('deriv_token');
+  if (!API_TOKEN) {
+    window.location.href = OAUTH_URL;
+  }
+
+  // ──────────────── SETUP ────────────────
+  const WS_URL = `wss://ws.binaryws.com/websockets/v3?app_id=${APP_ID}`;
+  const markets = ['R_10','R_25','R_50','R_75','R_100','R_10_1s','R_25_1s','R_50_1s','R_75_1s','R_100_1s'];
+  const marketSelect = document.getElementById('marketSelect');
+  markets.forEach(m => marketSelect.append(new Option(m, m)));
+
+  let ws, priceChart, rsiChart;
+  let priceData = [], rsiData = [], timeLabels = [], entryMarkers = [];
+  let lastContractSub = null;
+
+  function initCharts() {
+    const priceCtx = document.getElementById('priceChart').getContext('2d');
+    const rsiCtx   = document.getElementById('rsiChart').getContext('2d');
+
+    priceChart = new Chart(priceCtx, {
+      type: 'line',
+      data: { labels: [], datasets:[
+        { label:'Price', data:[], borderColor:'#0ff', borderWidth:2, pointRadius:0 },
+        { label:'Entries', data:[], type:'scatter', backgroundColor:'#0f0', pointStyle:'triangle', pointRadius:8, showLine:false }
+      ]},
+      options:{animation:false, scales:{x:{display:false}}}
+    });
+
+    rsiChart = new Chart(rsiCtx, {
+      type: 'line',
+      data: { labels: [], datasets:[{ label:'RSI', data:[], borderColor:'#ff0', borderWidth:2, pointRadius:0 }]},
+      options:{animation:false, scales:{x:{display:false}, y:{min:0,max:100}}}
+    });
+  }
+
+  function connect() {
+    ws = new WebSocket(WS_URL);
+    ws.onopen = () => {
+      ws.send(JSON.stringify({ authorize: API_TOKEN }));
+      ws.send(JSON.stringify({ ticks: marketSelect.value }));
+    };
+    ws.onmessage = ({data}) => {
+      const msg = JSON.parse(data);
+
+      // ── handle authorize response ──
+      if (msg.authorize) {
+        document.getElementById('loginId').innerText = msg.authorize.loginid;
+        document.getElementById('balance').innerText = parseFloat(msg.authorize.balance).toFixed(2);
+      }
+
+      // ── live ticks ──
+      if (msg.tick) {
+        const price = msg.tick.quote;
+        const time  = new Date(msg.tick.epoch * 1e3).toLocaleTimeString();
+        priceData.push(price); timeLabels.push(time);
+        if (priceData.length > 100) {
+          priceData.shift(); timeLabels.shift(); rsiData.shift(); entryMarkers.shift();
+        }
+        const rsi = calculateRSI(priceData);
+        rsiData.push(rsi);
+        updateCharts(price, time, rsi);
+        autoAnalyze(price, rsi);
+      }
+
+      // ── buy contract response ──
+      if (msg.buy) {
+        recordTrade(msg.buy);
+        // subscribe to live contract updates
+        lastContractSub = msg.buy.subscription;
+        ws.send(JSON.stringify({ subscribe:1, proposal_open_contract: { contract_id: msg.buy.contract_id } }));
+      }
+
+      // ── contract updates ──
+      if (msg.proposal_open_contract) {
+        updateContractStatus(msg.proposal_open_contract);
+      }
+    };
+  }
+
+  function calculateRSI(data, period=14) {
+    if (data.length < period+1) return 50;
+    let gains=0,losses=0;
+    for (let i=data.length-period; i<data.length; i++){
+      const diff = data[i] - data[i-1];
+      if (diff>0) gains+=diff; else losses -= diff;
+    }
+    const rs = gains / (losses||1);
+    return 100 - 100/(1+rs);
+  }
+
+  function updateCharts(price,time,rsi) {
+    priceChart.data.labels = timeLabels;
+    priceChart.data.datasets[0].data = priceData;
+    priceChart.data.datasets[1].data = entryMarkers;
+    priceChart.update();
+    rsiChart.data.labels = timeLabels;
+    rsiChart.data.datasets[0].data = rsiData;
+    rsiChart.update();
+  }
+
+  function autoAnalyze(price,rsi) {
+    if (priceData.length<20) return;
+    const recent = priceData.slice(-5);
+    const avg = recent.reduce((a,b)=>a+b)/5;
+    let sig=null,conf=0,dur=1;
+    if (rsi<30&&price<avg){ sig='Buy'; conf=5; dur=3; }
+    else if (rsi<50&&price<avg){ sig='Buy'; conf=2; dur=1; }
+    else if (rsi>70&&price>avg){ sig='Sell'; conf=5; dur=3; }
+    else if (rsi>55&&price>avg){ sig='Sell'; conf=2; dur=1; }
+    if (sig) {
+      const sl = sig==='Buy'?price-0.3:price+0.3;
+      publishSignal(sig,conf,price,sl,dur);
+    }
+  }
+
+  function publishSignal(sig,conf,entry,sl,dur) {
+    const now = new Date().toLocaleTimeString();
+    document.getElementById('signal').innerHTML =
+      `<span style="color:${sig==='Buy'? '#0f0':'#f00'}">
+        ${sig} (${conf} Conf)
+      </span>`;
+    document.getElementById('signalStrength').innerText = `${conf} Conformation`;
+    document.getElementById('alertSound').play();
+
+    const row = `
+      <tr>
+        <td>${now}</td>
+        <td>${marketSelect.value}</td>
+        <td>${sig}</td>
+        <td>${conf}</td>
+        <td class="entry">${entry.toFixed(2)}</td>
+        <td class="stoploss">${sl.toFixed(2)}</td>
+        <td>${dur}</td>
+      </tr>`;
+    document.getElementById('historyBody').innerHTML = row + document.getElementById('historyBody').innerHTML;
+    entryMarkers.push({ x: now, y: entry });
+  }
+
+  function trade(type) {
+    const stake = parseFloat(document.getElementById('stakeSelect').value);
+    const dur   = parseInt(document.getElementById('durationSelect').value,10);
+    const symbol= marketSelect.value;
+    const params = {
+      amount: stake,
+      basis: 'stake',
+      contract_type: type,
+      currency: 'USD',
+      duration: dur,
+      duration_unit: 'm',
+      symbol
+    };
+    ws.send(JSON.stringify({ buy: params, subscribe:1 }));
+  }
+
+  function recordTrade(buyMsg) {
+    const now = new Date().toLocaleTimeString();
+    const { contract_id, transaction_id, contract_type, amount, duration } = buyMsg;
+    const row = document.createElement('tr');
+    row.id = `trade-${contract_id}`;
+    row.innerHTML = `
+      <td>${now}</td>
+      <td>${contract_id}</td>
+      <td>${marketSelect.value}</td>
+      <td>${contract_type}</td>
+      <td>${amount.toFixed(2)}</td>
+      <td>${duration}</td>
+      <td id="status-${contract_id}">OPEN</td>`;
+    document.getElementById('tradeHistoryBody').prepend(row);
+  }
+
+  function updateContractStatus(info) {
+    const cell = document.getElementById(`status-${info.contract_id}`);
+    if (cell) {
+      cell.innerText = info.status.toUpperCase();
+    }
+  }
+
+  document.getElementById('startBtn').onclick = () => {
+    initCharts();
+    connect();
+    document.getElementById('startBtn').disabled = true;
+    document.getElementById('stopBtn').disabled = false;
+  };
+
+  document.getElementById('stopBtn').onclick = () => {
+    if (ws) ws.close();
+    document.getElementById('startBtn').disabled = false;
+    document.getElementById('stopBtn').disabled = true;
+  };
+
+  document.getElementById('riseBtn').onclick  = () => trade('CALL');
+  document.getElementById('fallBtn').onclick  = () => trade('PUT');
+  document.getElementById('cancelBtn').onclick = () => {
+    if (lastContractSub) {
+      ws.send(JSON.stringify({ forget: lastContractSub }));
+      lastContractSub = null;
+    }
+  };
+  </script>
 </body>
 </html>
