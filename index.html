@@ -2,14 +2,79 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
+  <meta http-equiv="X-UA-Compatible" content="IE=edge" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
   <title>Deriv Mini Trading Signal Tool</title>
-  <script>
-    // ──────────────── OAUTH + TOKEN HANDLING ────────────────
-    const APP_ID       = '81018';  // ← your Deriv App ID
-    const REDIRECT_URI = window.location.origin + window.location.pathname; 
-    const OAUTH_URL    = `https://oauth.deriv.com/oauth2/authorize?app_id=${APP_ID}&redirect_uri=${encodeURIComponent(REDIRECT_URI)}`;
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <style>
+    body { background: #0d0d0d; color: #fff; font-family: Arial, sans-serif; margin: 0; padding: 0; }
+    .container { padding: 20px; display: flex; gap: 20px; }
+    .left-panel { flex: 3; }
+    .right-panel { flex: 1; }
+    h1 { text-align: center; color: #0ff; margin-bottom: 10px; }
+    .controls { margin-bottom: 20px; display: flex; align-items: center; gap: 10px; }
+    button { padding: 8px 12px; background: #0ff; color: #000; border: none; border-radius: 5px; cursor: pointer; }
+    select { padding: 4px; border-radius: 4px; }
+    .trade-history, .history { margin-top: 20px; }
+    table { width: 100%; border-collapse: collapse; margin-top: 10px; }
+    th, td { border: 1px solid #333; padding: 5px; text-align: center; }
+    .entry { color: #0f0; }
+    .stoploss { color: #f00; }
+    #signalStrength { margin-left: auto; font-size: 1.2em; color: gold; }
+    .chart-box { background: #1a1a1a; padding: 10px; border-radius: 10px; margin-bottom: 20px; }
+    canvas { display: block; max-width: 100%; margin: auto; }
+  </style>
+</head>
+<body>
+  <h1>Deriv Mini Trading Signal Tool</h1>
+  <div class="controls">
+    <button id="startBtn">Start</button>
+    <button id="stopBtn" disabled>Stop</button>
+    <button id="cancelBtn" disabled>Cancel Trade</button>
+    <label>Account:
+      <select id="accountType"><option value="demo">Demo</option><option value="real">Real</option></select>
+    </label>
+    <span id="balanceDisplay">Balance: --</span>
+    <span>CR: <span id="crNumber">--</span></span>
+    <span id="signalStrength">Waiting...</span>
+  </div>
+  <div class="container">
+    <div class="left-panel">
+      <div class="chart-box">
+        <canvas id="priceChart" height="200"></canvas>
+      </div>
+      <div class="chart-box">
+        <canvas id="rsiChart" height="100"></canvas>
+      </div>
+      <div id="signal" style="font-size: 1.4em; margin-top: 10px;"></div>
+      <div class="history">
+        <h3>Signal History</h3>
+        <table>
+          <thead><tr><th>Time</th><th>Market</th><th>Signal</th><th>Conf</th><th>Entry</th><th>SL</th><th>Dur</th></tr></thead>
+          <tbody id="historyBody"></tbody>
+        </table>
+      </div>
+    </div>
+    <div class="right-panel">
+      <label>Market:</label>
+      <select id="marketSelect"></select>
+      <div class="trade-history">
+        <h3>Trade History</h3>
+        <table>
+          <thead><tr><th>ID</th><th>Type</th><th>Entry</th><th>Exit</th><th>Result</th></tr></thead>
+          <tbody id="tradeHistoryBody"></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
 
+  <audio id="alertSound" src="https://actions.google.com/sounds/v1/alarms/beep_short.ogg" preload="auto"></audio>
+
+  <!-- OAuth + Token Handling -->
+  <script>
+    const APP_ID = '81018';
+    const REDIRECT_URI = window.location.origin + window.location.pathname;
+    const OAUTH_URL = `https://oauth.deriv.com/oauth2/authorize?app_id=${APP_ID}&redirect_uri=${encodeURIComponent(REDIRECT_URI)}`;
     (function handleOAuthCallback() {
       const params = new URLSearchParams(window.location.search);
       if (params.has('token1') && params.has('acct1')) {
@@ -18,161 +83,98 @@
         history.replaceState(null, '', REDIRECT_URI);
       }
     })();
-
     const TOKEN = localStorage.getItem('deriv_token');
     if (!TOKEN) {
       window.location.href = OAUTH_URL;
     }
   </script>
-  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-  <style>
-    body { background: #0d0d0d; color: #fff; font-family: Arial; margin: 0; padding: 0; }
-    .container { padding: 20px; display: flex; gap: 20px; }
-    .left-panel { flex: 3; }
-    .right-panel { flex: 1; }
-    h1 { text-align: center; color: #0ff; }
-    .controls, .balance-panel { margin-bottom: 15px; }
-    .chart-box { background: #1a1a1a; padding: 10px; border-radius: 10px; margin-bottom: 20px; }
-    canvas { display: block; max-width: 100%; margin: auto; }
-    button { margin-right: 10px; padding: 8px 12px; border: none; border-radius: 5px; cursor: pointer; }
-    .btn-start { background: lime; color: #000; }
-    .btn-stop { background: red; color: #fff; }
-    .btn-cancel { background: orange; color: #000; }
-    table { width: 100%; border-collapse: collapse; margin-top: 10px; }
-    th, td { border: 1px solid #333; padding: 5px; text-align: center; }
-    #signalStrength { float: right; color: gold; font-weight: bold; }
-    select, label { color: #0ff; }
-  </style>
-</head>
-<body>
-  <h1>Deriv Mini Trading Signal Tool</h1>
-  <div class="balance-panel">
-    <div style="text-align: center;">
-      <span id="crNumber">CR: ...</span> |
-      <span id="balance">Balance: ...</span> |
-      <select id="accountType">
-        <option value="real">Real</option>
-        <option value="virtual">Demo</option>
-      </select>
-    </div>
-  </div>
-
-  <div class="container">
-    <div class="left-panel">
-      <div class="controls">
-        <button id="startBtn" class="btn-start">Start</button>
-        <button id="stopBtn" class="btn-stop" disabled>Stop</button>
-        <button id="cancelBtn" class="btn-cancel">Cancel Trade</button>
-        <span id="signalStrength">Waiting...</span>
-      </div>
-
-      <div class="chart-box"><canvas id="priceChart" height="200"></canvas></div>
-      <div class="chart-box"><canvas id="rsiChart" height="100"></canvas></div>
-      <div id="signal" style="font-size: 1.4em; margin-top: 10px;"></div>
-
-      <div class="history">
-        <h3>Trade History</h3>
-        <table>
-          <thead><tr><th>Time</th><th>Market</th><th>Type</th><th>Conf</th><th>Entry</th><th>SL</th><th>Duration</th></tr></thead>
-          <tbody id="historyBody"></tbody>
-        </table>
-      </div>
-    </div>
-
-    <div class="right-panel">
-      <label>Market:</label>
-      <select id="marketSelect"></select>
-    </div>
-  </div>
-
-  <audio id="alertSound" src="https://actions.google.com/sounds/v1/alarms/beep_short.ogg" preload="auto"></audio>
 
   <script>
-    const marketSelect = document.getElementById("marketSelect");
-    const markets = ['R_10', 'R_25', 'R_50', 'R_75', 'R_100', 'R_10_1s', 'R_25_1s', 'R_50_1s', 'R_75_1s', 'R_100_1s'];
+    const API_TOKEN = TOKEN;
+    const WS_URL = 'wss://ws.binaryws.com/websockets/v3?app_id=69656';
+    const markets = ['R_10','R_25','R_50','R_75','R_100','R_10_1s','R_25_1s','R_50_1s','R_75_1s','R_100_1s'];
+    const marketSelect = document.getElementById('marketSelect');
     markets.forEach(m => marketSelect.append(new Option(m, m)));
-
-    const accountTypeSelect = document.getElementById("accountType");
-    const crDisplay = document.getElementById("crNumber");
-    const balanceDisplay = document.getElementById("balance");
 
     let ws, priceChart, rsiChart;
     let priceData = [], rsiData = [], timeLabels = [], entryMarkers = [];
+    let demoBalance = '--', realBalance = '--';
+    let tradeCount = 0;
+
+    document.getElementById('accountType').onchange = updateBalanceDisplay;
 
     function initCharts() {
       const priceCtx = document.getElementById('priceChart').getContext('2d');
       const rsiCtx = document.getElementById('rsiChart').getContext('2d');
       priceChart = new Chart(priceCtx, {
         type: 'line',
-        data: { labels: [], datasets: [
-          { label: 'Price', data: [], borderColor: '#0ff', borderWidth: 2, pointRadius: 0 },
-          { label: 'Entries', data: [], type: 'scatter', backgroundColor: '#0f0', pointStyle: 'triangle', pointRadius: 8, showLine: false }
-        ] },
-        options: { animation: false, scales: { x: { display: false } } }
+        data: { labels: [], datasets: [{ label: 'Price', data: [], borderColor: '#0ff', borderWidth: 2, pointRadius:0 },{ label:'Entries', data:[], type:'scatter', backgroundColor:'#0f0', pointStyle:'triangle', pointRadius:8, showLine:false }] },
+        options: { animation:false, scales:{ x:{ display:false } } }
       });
       rsiChart = new Chart(rsiCtx, {
-        type: 'line',
-        data: { labels: [], datasets: [{ label: 'RSI', data: [], borderColor: '#ff0', borderWidth: 2, pointRadius: 0 }] },
-        options: { animation: false, scales: { x: { display: false }, y: { min: 0, max: 100 } } }
+        type:'line',
+        data:{ labels:[], datasets:[{ label:'RSI', data:[], borderColor:'#ff0', borderWidth:2, pointRadius:0 }] },
+        options:{ animation:false, scales:{ x:{ display:false }, y:{ min:0, max:100 } } }
       });
     }
 
     function connect() {
-      ws = new WebSocket(`wss://ws.binaryws.com/websockets/v3?app_id=${APP_ID}`);
+      ws = new WebSocket(WS_URL);
       ws.onopen = () => {
-        ws.send(JSON.stringify({ authorize: TOKEN }));
+        ws.send(JSON.stringify({ authorize: API_TOKEN }));
+        subscribe();
+        requestBalances();
+        document.getElementById('crNumber').innerText = localStorage.getItem('deriv_loginid') || '--';
       };
       ws.onmessage = ({ data }) => {
         const msg = JSON.parse(data);
-        if (msg.authorize) {
-          crDisplay.textContent = `CR: ${msg.authorize.currency}`;
-          requestBalance();
-        }
-        if (msg.balance) {
-          balanceDisplay.textContent = `Balance: ${msg.balance.balance.toFixed(2)}`;
-        }
         if (msg.tick) updateData(msg.tick);
+        if (msg.balance) updateBalances(msg.balance);
       };
     }
 
-    function requestBalance() {
-      const type = accountTypeSelect.value;
-      ws.send(JSON.stringify({ balance: 1, subscribe: 1, account_type: type }));
+    function subscribe() { ws.send(JSON.stringify({ ticks: marketSelect.value })); }
+
+    function requestBalances() {
+      // real account
+      ws.send(JSON.stringify({ balance:1, subscribe:1 }));
+      // demo account
+      ws.send(JSON.stringify({ balance:1, subscribe:1, account_type:'demo' }));
     }
 
-    accountTypeSelect.addEventListener("change", () => {
-      if (ws && ws.readyState === WebSocket.OPEN) requestBalance();
-    });
+    function updateBalances(bal) {
+      if (bal.account_type === 'demo') demoBalance = bal.balance.toFixed(2);
+      else realBalance = bal.balance.toFixed(2);
+      updateBalanceDisplay();
+    }
 
-    function subscribeTicks() {
-      ws.send(JSON.stringify({ ticks: marketSelect.value }));
+    function updateBalanceDisplay() {
+      const type = document.getElementById('accountType').value;
+      document.getElementById('balanceDisplay').innerText = 'Balance: ' + (type==='demo' ? demoBalance : realBalance);
     }
 
     function updateData(tick) {
       const price = tick.quote;
-      const time = new Date(tick.epoch * 1000).toLocaleTimeString();
+      const time = new Date(tick.epoch*1000).toLocaleTimeString();
       priceData.push(price); timeLabels.push(time);
-      if (priceData.length > 100) {
-        priceData.shift(); timeLabels.shift(); rsiData.shift(); entryMarkers.shift();
-      }
+      if (priceData.length>100) { priceData.shift(); timeLabels.shift(); rsiData.shift(); entryMarkers.shift(); }
       const rsi = calculateRSI(priceData);
       rsiData.push(rsi);
-      updateCharts(price, time, rsi);
+      updateCharts();
       autoAnalyze(price, rsi);
     }
 
-    function calculateRSI(data, period = 14) {
-      if (data.length < period + 1) return 50;
-      let gains = 0, losses = 0;
-      for (let i = data.length - period; i < data.length; i++) {
-        const diff = data[i] - data[i - 1];
-        diff > 0 ? gains += diff : losses -= diff;
+    function calculateRSI(data, period=14) {
+      if (data.length<period+1) return 50;
+      let gains=0, losses=0;
+      for (let i=data.length-period; i<data.length; i++) {
+        const diff = data[i]-data[i-1]; if (diff>0) gains+=diff; else losses-=diff;
       }
-      const rs = gains / (losses || 1);
-      return 100 - 100 / (1 + rs);
+      const rs = gains/(losses||1);
+      return 100 - 100/(1+rs);
     }
 
-    function updateCharts(price, time, rsi) {
+    function updateCharts() {
       priceChart.data.labels = timeLabels;
       priceChart.data.datasets[0].data = priceData;
       priceChart.data.datasets[1].data = entryMarkers;
@@ -183,31 +185,49 @@
     }
 
     function autoAnalyze(price, rsi) {
-      if (priceData.length < 20) return;
+      if (priceData.length<20) return;
       const recent = priceData.slice(-5);
-      const avg = recent.reduce((a, b) => a + b) / 5;
-      let signal = null, conf = 0, dur = 5;
-      if (rsi < 30 && price < avg) { signal = 'Buy'; conf = 5; dur = 3; }
-      else if (rsi < 50 && price < avg) { signal = 'Buy'; conf = 2; dur = 1; }
-      else if (rsi > 70 && price > avg) { signal = 'Sell'; conf = 5; dur = 3; }
-      else if (rsi > 55 && price > avg) { signal = 'Sell'; conf = 2; dur = 1; }
+      const avg = recent.reduce((a,b)=>a+b)/5;
+      let signal=null, conf=0, dur=5;
+      if (rsi<30 && price<avg) { signal='Buy'; conf=5; dur=3; }
+      else if (rsi<40 && price<avg) { signal='Buy'; conf=4; dur=2; }
+      else if (rsi<50 && price<avg) { signal='Buy'; conf=2; dur=1; }
+      else if (rsi>70 && price>avg) { signal='Sell'; conf=5; dur=3; }
+      else if (rsi>60 && price>avg) { signal='Sell'; conf=4; dur=2; }
+      else if (rsi>55 && price>avg) { signal='Sell'; conf=2; dur=1; }
       if (signal) {
-        const stop = signal === 'Buy' ? price - 0.3 : price + 0.3;
-        publishSignal(signal, conf, price, stop, dur);
+        const sl = signal==='Buy'?price-0.3:price+0.3;
+        publishSignal(signal, conf, price, sl, dur);
+        if (conf===5) simulateTrade(signal, price, dur);
       }
     }
 
-    function publishSignal(signal, conf, entry, stopLoss, duration) {
+    function publishSignal(signal, conf, entry, sl, dur) {
       const now = new Date().toLocaleTimeString();
-      document.getElementById('signal').innerHTML = `<span style="color:${signal === 'Buy' ? '#0f0' : '#f00'}">${signal} (${conf} Conf)</span>`;
+      const mkt = marketSelect.value;
+      document.getElementById('signal').innerHTML = `<span style="color:${signal==='Buy'?'#0f0':'#f00'}">${signal} (${conf} Conf)</span>`;
       document.getElementById('signalStrength').innerText = `${conf} Conformation`;
       document.getElementById('alertSound').play();
-      document.getElementById('historyBody').innerHTML = `
-        <tr><td>${now}</td><td>${marketSelect.value}</td><td>${signal}</td><td>${conf}</td>
-        <td>${entry.toFixed(2)}</td><td>${stopLoss.toFixed(2)}</td><td>${duration}</td></tr>
-      ` + document.getElementById('historyBody').innerHTML;
+      const row = `<tr><td>${now}</td><td>${mkt}</td><td>${signal}</td><td>${conf}</td><td class="entry">${entry.toFixed(2)}</td><td class="stoploss">${sl.toFixed(2)}</td><td>${dur}</td></tr>`;
+      document.getElementById('historyBody').innerHTML = row + document.getElementById('historyBody').innerHTML;
       entryMarkers.push({ x: now, y: entry });
     }
+
+    function simulateTrade(signal, entry, dur) {
+      tradeCount++; document.getElementById('cancelBtn').disabled = false;
+      setTimeout(() => {
+        const final = priceData[priceData.length-1];
+        const res = (signal==='Buy'&&final>entry)||(signal==='Sell'&&final<entry)?'Win':'Loss';
+        const row = `<tr><td>${tradeCount}</td><td>${signal}</td><td>${entry.toFixed(2)}</td><td>${final.toFixed(2)}</td><td style="color:${res==='Win'?'#0f0':'#f00'}">${res}</td></tr>`;
+        document.getElementById('tradeHistoryBody').innerHTML = row + document.getElementById('tradeHistoryBody').innerHTML;
+        document.getElementById('cancelBtn').disabled = true;
+      }, dur*1000);
+    }
+
+    document.getElementById('cancelBtn').onclick = () => {
+      alert('Trade cancelled by user');
+      document.getElementById('cancelBtn').disabled = true;
+    };
 
     document.getElementById('startBtn').onclick = () => {
       initCharts(); connect();
@@ -219,10 +239,6 @@
       if (ws) ws.close();
       document.getElementById('startBtn').disabled = false;
       document.getElementById('stopBtn').disabled = true;
-    };
-
-    document.getElementById('cancelBtn').onclick = () => {
-      alert("Trade canceled.");
     };
   </script>
 </body>
