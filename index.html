@@ -10,173 +10,285 @@
     .container { display: flex; gap: 20px; padding: 20px; }
     .left-panel { flex: 3; }
     .right-panel { flex: 1; }
-    h1 { text-align: center; color: #0ff; }
+    h1 { text-align: center; color: #0ff; margin: 20px 0; }
     .chart-box, .history, .summary { background: #1a1a1a; border-radius: 10px; padding: 10px; margin-bottom: 20px; }
     canvas { width: 100% !important; height: 200px !important; }
     button { padding: 8px 12px; margin-right: 10px; background: #0ff; color: #000; border: none; border-radius: 5px; cursor: pointer; }
-    #riseBtn { background: #0f0; } #fallBtn { background: #f00; } #cancelBtn { background: #444; color: #fff; }
+    #autoRunBtn { background: #0f0; }
+    #stopBtn   { background: #f00; }
     table { width: 100%; border-collapse: collapse; font-size: 13px; }
     th, td { border: 1px solid #333; padding: 5px; text-align: center; }
-    .win { background: #003300; color: #0f0; } .loss { background: #330000; color: #f00; }
-    .entry { color: #0f0; } .stoploss { color: #f00; }
+    .win      { background: #003300; color: #0f0; }
+    .loss     { background: #330000; color: #f00; }
+    .entry    { color: #0f0; }
+    .stoploss { color: #f00; }
   </style>
 </head>
 <body>
-<h1>📈 Deriv Signal + Real Trading Tool</h1>
-<div class="container">
-  <div class="left-panel">
-    <div class="chart-box">
-      <canvas id="priceChart"></canvas>
+  <h1>📈 Deriv Signal + Real Trading Tool</h1>
+  <div class="container">
+    <div class="left-panel">
+      <div class="chart-box">
+        <canvas id="priceChart"></canvas>
+      </div>
+      <div class="chart-box">
+        <canvas id="rsiChart"></canvas>
+      </div>
+      <div class="summary">
+        <div id="signalStrength">Waiting for Signal...</div>
+        <div id="stats">Total: 0 | Wins: 0 | Losses: 0 | Profit: $0.00</div>
+      </div>
+      <div class="history">
+        <h3>📜 Signal + Trade History</h3>
+        <table>
+          <thead>
+            <tr>
+              <th>Time</th><th>Market</th><th>Signal</th><th>Conf</th>
+              <th>Entry</th><th>SL</th><th>Dur</th><th>Status</th><th>Behavior</th>
+            </tr>
+          </thead>
+          <tbody id="tradeHistory"></tbody>
+        </table>
+      </div>
     </div>
-    <div class="chart-box">
-      <canvas id="rsiChart"></canvas>
-    </div>
-    <div class="summary">
-      <div id="signalStrength">Waiting for Signal...</div>
-      <div id="stats">Total: 0 | Wins: 0 | Losses: 0 | Profit: $0.00</div>
-    </div>
-    <div class="history">
-      <h3>📜 Signal + Trade History</h3>
-      <table>
-        <thead><tr><th>Time</th><th>Market</th><th>Signal</th><th>Conf</th><th>Entry</th><th>SL</th><th>Dur</th><th>Status</th><th>Behavior</th></tr></thead>
-        <tbody id="tradeHistory"></tbody>
-      </table>
+
+    <div class="right-panel">
+      <label>Market:</label>
+      <select id="marketSelect"></select><br/><br/>
+      <label>Stake:</label>
+      <select id="stake">
+        <option>1</option><option>5</option><option>10</option>
+      </select><br/><br/>
+      <label>Duration (min):</label>
+      <select id="duration">
+        <option>1</option><option>2</option><option>3</option>
+      </select><br/><br/>
+      <button id="autoRunBtn">Auto Run</button>
+      <button id="stopBtn">Stop</button><br/><br/>
+      <div>ID: <strong id="loginId">-</strong></div>
+      <div>Balance: <strong id="balance">-</strong> USD</div>
     </div>
   </div>
 
-  <div class="right-panel">
-    <label>Market:</label>
-    <select id="marketSelect"></select><br/><br/>
-    <label>Stake:</label>
-    <select id="stake"><option>1</option><option>5</option><option>10</option></select><br/><br/>
-    <label>Duration (min):</label>
-    <select id="duration"><option>1</option><option>2</option><option>3</option></select><br/><br/>
-    <button id="riseBtn">Rise</button>
-    <button id="fallBtn">Fall</button>
-    <button id="cancelBtn">Cancel</button><br/><br/>
-    <div>ID: <strong id="loginId">-</strong></div>
-    <div>Balance: <strong id="balance">-</strong> USD</div>
-  </div>
-</div>
+  <audio id="winSound"  src="https://actions.google.com/sounds/v1/cartoon/clang_and_wobble.ogg" preload="auto"></audio>
+  <audio id="lossSound" src="https://actions.google.com/sounds/v1/cartoon/wood_plank_flicks.ogg" preload="auto"></audio>
+  <audio id="alertSound" src="https://actions.google.com/sounds/v1/alarms/beep_short.ogg" preload="auto"></audio>
 
-<audio id="winSound" src="https://actions.google.com/sounds/v1/cartoon/clang_and_wobble.ogg" preload="auto"></audio>
-<audio id="lossSound" src="https://actions.google.com/sounds/v1/cartoon/wood_plank_flicks.ogg" preload="auto"></audio>
-<audio id="alertSound" src="https://actions.google.com/sounds/v1/alarms/beep_short.ogg" preload="auto"></audio>
+  <script>
+    // ──────────────── OAUTH + TOKEN HANDLING ────────────────
+    const APP_ID       = '81018';
+    const REDIRECT_URI = window.location.origin + window.location.pathname;
+    const OAUTH_URL    = `https://oauth.deriv.com/oauth2/authorize?app_id=${APP_ID}&redirect_uri=${encodeURIComponent(REDIRECT_URI)}`;
 
-<script>
-// ──────────────── CONFIGURABLE REDIRECT ────────────────
-const urlParams = new URLSearchParams(window.location.search);
-const redirectUri = urlParams.get('redirect') || window.location.href;
-const APP_ID = '81018';
+    (function handleOAuthCallback() {
+      const params = new URLSearchParams(window.location.search);
+      if (params.has('token1') && params.has('acct1')) {
+        localStorage.setItem('deriv_token', params.get('token1'));
+        localStorage.setItem('deriv_loginid', params.get('acct1'));
+        history.replaceState(null, '', REDIRECT_URI);
+      }
+    })();
 
-// OAuth flow
-(function handleOAuth() {
-  const params = new URLSearchParams(window.location.search);
-  if (params.has('token1') && params.has('acct1')) {
-    localStorage.setItem('deriv_token', params.get('token1'));
-    localStorage.setItem('deriv_loginid', params.get('acct1'));
-    window.location.href = redirectUri;
-    return;
-  }
-  const token = localStorage.getItem('deriv_token');
-  if (!token) {
-    window.location.href = `https://oauth.deriv.com/oauth2/authorize?app_id=${APP_ID}&redirect_uri=${encodeURIComponent(redirectUri)}`;
-  }
-})();
+    const token = localStorage.getItem('deriv_token');
+    if (!token) {
+      window.location.href = OAUTH_URL;
+    }
 
-// Initialization
-const markets = ['R_10','R_25','R_50','R_75','R_100','R_10_1s','R_25_1s'];
-const marketSelect = document.getElementById('marketSelect');
-markets.forEach(m => marketSelect.append(new Option(m,m)));
-let ws, priceChart, rsiChart, priceData=[], rsiData=[], timeLabels=[], stats={total:0,wins:0,losses:0,profit:0}, contractMap={};
+    // ──────────────── TRADING TOOL SCRIPT ────────────────
+    const markets = ['R_10','R_25','R_50','R_75','R_100','R_10_1s','R_25_1s'];
+    const marketSelect = document.getElementById('marketSelect');
+    markets.forEach(m => marketSelect.append(new Option(m, m)));
 
-function initWebSocket() {
-  ws = new WebSocket(`wss://ws.binaryws.com/websockets/v3?app_id=${APP_ID}`);
-  ws.onopen = () => ws.send(JSON.stringify({ authorize: localStorage.getItem('deriv_token') }));
-  ws.onmessage = ({ data }) => handleMessage(JSON.parse(data));
-}
+    let ws, priceChart, rsiChart,
+        priceData = [], rsiData = [], timeLabels = [], entryMarkers = [],
+        stats = { total: 0, wins: 0, losses: 0, profit: 0 },
+        contractMap = {}, currentSymbol = markets[0], autoRunning = false;
 
-function handleMessage(msg) {
-  if (msg.authorize) {
-    document.getElementById('loginId').innerText = msg.authorize.loginid;
-    document.getElementById('balance').innerText = parseFloat(msg.authorize.balance).toFixed(2);
-    subscribeMarket(markets[0]);
-  }
-  if (msg.tick) onTick(msg.tick);
-  if (msg.buy) onBuy(msg.buy);
-  if (msg.proposal_open_contract) onContractUpdate(msg.proposal_open_contract);
-}
+    function initCharts() {
+      const priceCtx = document.getElementById('priceChart').getContext('2d');
+      priceChart = new Chart(priceCtx, {
+        type: 'line',
+        data: { labels: [], datasets: [
+          { label: 'Price', data: [], borderColor: '#0ff', pointRadius: 0 },
+          { label: 'Entries', data: [], type: 'scatter', pointStyle: 'triangle', pointRadius: 8, showLine: false }
+        ]},
+        options: { animation: false, scales: { x: { display: false } } }
+      });
 
-// Tick processing
-function onTick(tick) {
-  const price = parseFloat(tick.quote);
-  const time = new Date(tick.epoch*1000).toLocaleTimeString();
-  priceData.push(price); timeLabels.push(time);
-  if (priceData.length>100) { priceData.shift(); rsiData.shift(); timeLabels.shift(); }
-  const rsi = calculateRSI(priceData);
-  rsiData.push(rsi);
-  updateCharts();
-  autoAnalyze(price,rsi);
-}
+      const rsiCtx = document.getElementById('rsiChart').getContext('2d');
+      rsiChart = new Chart(rsiCtx, {
+        type: 'line',
+        data: { labels: [], datasets: [{ label: 'RSI', data: [], borderColor: '#ff0', pointRadius: 0 }] },
+        options: { animation: false, scales: { x: { display: false }, y: { min: 0, max: 100 } } }
+      });
+    }
 
-// Handle buy response
-function onBuy(buy) {
-  const id = buy.contract_id;
-  const stake = buy.echo_req.parameters.amount;
-  ws.send(JSON.stringify({ proposal_open_contract:1, contract_id:id, subscribe:1 }));
-  addHistoryRow(id, buy.echo_req.parameters.contract_type, stake);
-  stats.total++; updateStats();
-}
+    function updateStats() {
+      document.getElementById('stats').textContent =
+        `Total: ${stats.total} | Wins: ${stats.wins} | Losses: ${stats.losses} | Profit: $${stats.profit.toFixed(2)}`;
+    }
 
-// Contract status
-function onContractUpdate(c) {
-  const row = document.getElementById(`row-${c.contract_id}`);
-  if (!row) return;
-  const behaviorCell = document.getElementById(`behavior-${c.contract_id}`);
-  const statusCell = document.getElementById(`status-${c.contract_id}`);
-  if (c.status==='won') { row.className='win'; statusCell.textContent='WON'; stats.wins++; stats.profit+=parseFloat(c.profit); document.getElementById('winSound').play(); }
-  else if (c.status==='lost') { row.className='loss'; statusCell.textContent='LOST'; stats.losses++; stats.profit+=parseFloat(c.profit); document.getElementById('lossSound').play(); }
-  behaviorCell.textContent = `Entry: ${c.entry_spot_display_value}, Exit: ${c.current_spot_display_value}, PnL: $${c.profit}`;
-  updateStats();
-}
+    function calculateRSI(data, period = 14) {
+      if (data.length < period + 1) return 50;
+      let gains = 0, losses = 0;
+      for (let i = data.length - period; i < data.length; i++) {
+        const diff = data[i] - data[i - 1];
+        if (diff > 0) gains += diff;
+        else        losses -= diff;
+      }
+      const rs = gains / (losses || 1);
+      return 100 - 100 / (1 + rs);
+    }
 
-function addHistoryRow(id,type,stake) {
-  const time=new Date().toLocaleTimeString();
-  const html=`<tr id="row-${id}"><td>${time}</td><td>${marketSelect.value}</td><td>${type}</td><td>-</td><td class="entry">${stake}</td><td>-</td><td>${document.getElementById('duration').value}</td><td id="status-${id}">OPEN</td><td id="behavior-${id}">Waiting...</td></tr>`;
-  document.getElementById('tradeHistory').insertAdjacentHTML('afterbegin',html);
-}
+    function updateCharts(price, time, rsi) {
+      priceChart.data.labels = timeLabels;
+      priceChart.data.datasets[0].data = priceData;
+      priceChart.data.datasets[1].data = entryMarkers;
+      priceChart.update();
+      rsiChart.data.labels = timeLabels;
+      rsiChart.data.datasets[0].data = rsiData;
+      rsiChart.update();
+    }
 
-function updateStats(){ document.getElementById('stats').textContent=`Total: ${stats.total} | Wins: ${stats.wins} | Losses: ${stats.losses} | Profit: $${stats.profit.toFixed(2)}`; }
+    function drawArrow(label, value) {
+      entryMarkers.push({ x: timeLabels[timeLabels.length - 1], y: value });
+    }
 
-function subscribeMarket(symbol){ ws.send(JSON.stringify({ forget_all:'ticks' })); ws.send(JSON.stringify({ ticks:symbol, subscribe:1 })); }
+    function autoAnalyze(price, rsi) {
+      const avg = priceData.slice(-5).reduce((a,b)=>a+b,0) / 5;
+      let signal = null, conf = 0;
+      if (rsi < 30 && price < avg) { signal = 'CALL'; conf = 5; }
+      else if (rsi > 70 && price > avg) { signal = 'PUT'; conf = 5; }
 
-// Charts
-function initCharts() {
-  const pCtx=document.getElementById('priceChart').getContext('2d');
-  priceChart=new Chart(pCtx,{type:'line',data:{labels:timeLabels,datasets:[{label:'Price',data:priceData,borderColor:'#0ff',pointRadius:0}]},options:{animation:false,scales:{x:{display:false}}}});
-  const rCtx=document.getElementById('rsiChart').getContext('2d');
-  rsiChart=new Chart(rCtx,{type:'line',data:{labels:timeLabels,datasets:[{label:'RSI',data:rsiData,borderColor:'#ff0',pointRadius:0}]},options:{animation:false,scales:{x:{display:false},y:{min:0,max:100}}}});
-}
+      if (signal && conf === 5) {
+        document.getElementById('signalStrength').innerHTML =
+          `📊 Signal: ${signal} (${conf} Conf)`;
+        document.getElementById('alertSound').play();
+        if (autoRunning) trade(signal);
+      }
+    }
 
-function updateCharts(){ priceChart.update(); rsiChart.update(); }
+    function subscribeMarket(symbol) {
+      ws.send(JSON.stringify({ forget_all: 'ticks' }));
+      ws.send(JSON.stringify({ ticks: symbol, subscribe: 1 }));
+    }
 
-// RSI calc
-function calculateRSI(data,period=14){ if(data.length<period+1)return 50; let gains=0,losses=0; for(let i=data.length-period;i<data.length;i++){ const diff=data[i]-data[i-1]; if(diff>0) gains+=diff; else losses-=diff;} const rs=gains/(losses||1); return 100-100/(1+rs); }
+    function trade(type) {
+      const symbol   = marketSelect.value;
+      const stake    = +document.getElementById('stake').value;
+      const duration = +document.getElementById('duration').value;
+      currentSymbol = symbol;
+      subscribeMarket(symbol);
 
-// Auto-analysis
-function autoAnalyze(price,rsi){ const avg=priceData.slice(-5).reduce((a,b)=>a+b)/5; let signal=null; if(rsi<30&&price<avg) signal='CALL'; else if(rsi>70&&price>avg) signal='PUT'; if(signal){ document.getElementById('signalStrength').innerHTML=`📊 Signal: ${signal}`; document.getElementById('alertSound').play(); trade(signal);} }
+      const buy = {
+        buy: 1,
+        price: stake,
+        parameters: {
+          amount: stake,
+          basis: 'stake',
+          contract_type: type,
+          currency: 'USD',
+          duration: duration,
+          duration_unit: 'm',
+          symbol: symbol
+        }
+      };
+      ws.send(JSON.stringify(buy));
+    }
 
-// Trade
-function trade(type){ const stake=document.getElementById('stake').value; const duration=document.getElementById('duration').value; const buy={buy:1,price:stake,parameters:{amount:stake,basis:'stake',contract_type:type,currency:'USD',duration:duration,duration_unit:'m',symbol:marketSelect.value}}; ws.send(JSON.stringify(buy)); subscribeMarket(marketSelect.value);}  
+    // WebSocket event handlers
+    function setupWebSocket() {
+      ws = new WebSocket(`wss://ws.binaryws.com/websockets/v3?app_id=${APP_ID}`);
+      ws.onopen = () => ws.send(JSON.stringify({ authorize: token }));
+      ws.onmessage = ({ data }) => {
+        const msg = JSON.parse(data);
 
-document.getElementById('riseBtn').onclick=() => trade('CALL');
-document.getElementById('fallBtn').onclick=() => trade('PUT');
-document.getElementById('cancelBtn').onclick=() => ws.send(JSON.stringify({forget_all:'proposal_open_contract'}));
+        if (msg.authorize) {
+          document.getElementById('loginId').innerText = msg.authorize.loginid;
+          document.getElementById('balance').innerText = parseFloat(msg.authorize.balance).toFixed(2);
+          subscribeMarket(currentSymbol);
+        }
 
-// Start
-initCharts();
-initWebSocket();
-</script>
+        if (msg.tick) {
+          const price = parseFloat(msg.tick.quote);
+          const time  = new Date(msg.tick.epoch * 1000).toLocaleTimeString();
+          priceData.push(price);
+          timeLabels.push(time);
+          if (priceData.length > 100) {
+            priceData.shift();
+            timeLabels.shift();
+            rsiData.shift();
+            entryMarkers.shift();
+          }
+          const rsi = calculateRSI(priceData);
+          rsiData.push(rsi);
+          updateCharts(price, time, rsi);
+          autoAnalyze(price, rsi);
+        }
 
+        if (msg.buy) {
+          const { contract_id } = msg.buy;
+          const stake = msg.echo_req.parameters.amount;
+          const type  = msg.echo_req.parameters.contract_type;
+          const time  = new Date().toLocaleTimeString();
+          const row = `
+            <tr id="row-${contract_id}">
+              <td>${time}</td>
+              <td>${currentSymbol}</td>
+              <td>${type}</td>
+              <td>-</td>
+              <td class="entry">${stake}</td>
+              <td>-</td>
+              <td>-</td>
+              <td id="status-${contract_id}">OPEN</td>
+              <td id="behavior-${contract_id}">Waiting...</td>
+            </tr>`;
+          document.getElementById('tradeHistory').insertAdjacentHTML('afterbegin', row);
+          ws.send(JSON.stringify({ proposal_open_contract: 1, contract_id, subscribe: 1 }));
+          contractMap[contract_id] = true;
+          drawArrow("Entry", priceData[priceData.length - 1]);
+          stats.total++;
+          updateStats();
+        }
+
+        if (msg.proposal_open_contract) {
+          const c = msg.proposal_open_contract;
+          const rowEl = document.getElementById(`row-${c.contract_id}`);
+          const behaviorEl = document.getElementById(`behavior-${c.contract_id}`);
+          if (!rowEl || !behaviorEl) return;
+
+          if (c.status === 'won') {
+            rowEl.className = 'win';
+            document.getElementById(`status-${c.contract_id}`).textContent = 'WON';
+            behaviorEl.textContent =
+              `Entry: ${c.entry_spot_display_value}, Exit: ${c.current_spot_display_value}, PnL: $${c.profit}`;
+            document.getElementById('winSound').play();
+            stats.wins++;
+            stats.profit += parseFloat(c.profit);
+          } else if (c.status === 'lost') {
+            rowEl.className = 'loss';
+            document.getElementById(`status-${c.contract_id}`).textContent = 'LOST';
+            behaviorEl.textContent =
+              `Entry: ${c.entry_spot_display_value}, Exit: ${c.current_spot_display_value}, PnL: $${c.profit}`;
+            document.getElementById('lossSound').play();
+            stats.losses++;
+            stats.profit += parseFloat(c.profit);
+          } else {
+            behaviorEl.textContent = `Live: ${c.current_spot_display_value}`;
+          }
+          drawArrow("Exit", parseFloat(c.current_spot_display_value));
+          updateStats();
+        }
+      };
+    }
+
+    // Button handlers
+    document.getElementById('autoRunBtn').onclick = () => { autoRunning = true; };
+    document.getElementById('stopBtn').onclick    = () => { autoRunning = false; };
+
+    // Initialize
+    initCharts();
+    setupWebSocket();
+  </script>
 </body>
 </html>
