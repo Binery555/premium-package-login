@@ -3,9 +3,9 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1.0" />
-  <title>Binary Profit Table</title>
+  <title>Binary Profit Table (Frontend)</title>
 
-  <!-- load Font Awesome as before -->
+  <!-- load Font Awesome -->
   <link
     rel="stylesheet"
     href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/all.min.css"
@@ -19,7 +19,6 @@
 
   <style>
     :root {
-      /* your color variables */
       --sidebar-bg:     #000000;
       --main-bg:        #000000;
       --header-bg:      #000000;
@@ -31,35 +30,25 @@
       --badge-text:     #ffffff;
       --filter-border:  transparent;
     }
-
-    * {
-      box-sizing: border-box;
-      margin: 0;
-      padding: 0;
-    }
-
+    * { box-sizing: border-box; margin: 0; padding: 0; }
     body {
-      /* switch to Inter and enable tabular figures */
       font-family: Inter, sans-serif;
       font-feature-settings: 'tnum';
       background: var(--main-bg);
       color: var(--text-primary);
       font-size: 14px;
     }
-
     .container {
       display: flex;
       height: 100vh;
       flex-direction: column;
     }
-
     main.main {
       flex: 1;
       padding: 20px;
       display: flex;
       flex-direction: column;
     }
-
     .table-container {
       flex: 1;
       overflow-y: auto;
@@ -68,16 +57,12 @@
       background-color: #000;
       max-height: calc(100vh - 50px);
     }
-    .table-container::-webkit-scrollbar {
-      display: none;
-    }
-
+    .table-container::-webkit-scrollbar { display: none; }
     table {
       width: 100%;
       border-collapse: collapse;
       min-width: 900px;
     }
-
     thead th {
       position: sticky;
       top: 0;
@@ -88,16 +73,12 @@
       font-size: 13px;
       font-weight: 500;
     }
-
     tbody td {
       padding: 12px;
       color: var(--text-secondary);
       font-size: 13px;
     }
-    tbody tr:hover td {
-      background: #111;
-    }
-
+    tbody tr:hover td { background: #111; }
     .badge.currency {
       background: var(--badge-bg);
       color: var(--badge-text);
@@ -105,15 +86,12 @@
       border-radius: 4px;
       font-size: 11px;
     }
-
-    /* All times same size as other letters */
     .time {
       display: block;
       color: var(--text-secondary);
       font-size: 14px;
       margin-top: 2px;
     }
-
     td.positive {
       color: var(--accent-positive);
       font-weight: 600;
@@ -122,8 +100,6 @@
       color: var(--accent-negative);
       font-weight: 600;
     }
-
-    /* use Inter here too */
     tbody td:nth-child(2),
     tbody td:nth-child(4),
     tbody td:nth-child(5),
@@ -131,18 +107,12 @@
     tbody td:nth-child(7) {
       color: #eee;
       font-size: 14px;
-      font-family: Inter, sans-serif;
       font-weight: 500;
       opacity: 0.7;
     }
-
     td:nth-child(8) {
-      color: var(--accent-positive);
-      font-weight: bold;
       font-size: 14px;
     }
-
-    /* SUMMARY STYLING */
     .summary {
       position: sticky;
       bottom: 0;
@@ -156,10 +126,7 @@
       padding: 10px 0 0;
       border-top: 1px solid #222;
     }
-    .summary span:first-child {
-      flex: 7;
-    }
-    /* Move the total-profit value 2cm to the right (was -11cm, now -9cm) */
+    .summary span:first-child { flex: 7; }
     .summary .total-profit {
       flex: 1;
       color: var(--accent-positive);
@@ -167,7 +134,6 @@
       text-align: left;
       margin-left: -9cm;
     }
-
   </style>
 </head>
 <body>
@@ -192,42 +158,67 @@
       </div>
       <div class="summary">
         <span>Profit/loss on the last 150 contracts</span>
-        <span class="total-profit" id="total-profit">+23,649.98</span>
+        <span class="total-profit" id="total-profit">+0.00</span>
       </div>
     </main>
   </div>
 
   <script>
-    const tbody = document.getElementById('trade-body');
+    const tbody         = document.getElementById('trade-body');
     const totalProfitEl = document.getElementById('total-profit');
-    let totalProfit = 0;
+    let trades          = JSON.parse(localStorage.getItem('trades') || '[]');
+    let totalProfit     = 0;
 
-    for (let i = 0; i < 150; i++) {
-      const id = 138079013361 + i;
-      const stake = ((i % 10) + 1) * 0.5;
-      const profit = parseFloat((stake * 0.4).toFixed(2));
-      const buySec = (58 + i) % 60;
-      const sellSec = (2 + i) % 60;
-      const value = (stake * 1.38).toFixed(2);
-      totalProfit += profit;
+    // date/time formatters
+    const fmtDate = d => d.toLocaleDateString('en-GB', {
+      day: '2-digit', month: 'short', year: 'numeric'
+    });
+    const fmtTime = d => d.toLocaleTimeString('en-GB', {
+      hour12: false, hour: '2-digit', minute: '2-digit', second: '2-digit'
+    });
+
+    // render a single trade row and update total
+    function renderTrade(data) {
+      if (data.profit === 0.04) return; // Skip trades with exactly +0.04 profit
+
+      const buyDate  = new Date(data.buyTime);
+      const sellDate = new Date(data.sellTime);
+      const cls      = data.profit >= 0 ? 'positive' : 'negative';
+      const sign     = data.profit >= 0 ? '+' : '';
 
       const row = `
         <tr>
           <td><i class="fas fa-chart-line"></i></td>
-          <td>${id}</td>
-          <td><span class="badge currency">USD</span></td>
-          <td>04 Jul 2025<br><span class="time">17:23:${String(buySec).padStart(2,'0')} GMT</span></td>
-          <td>${stake.toFixed(2)}</td>
-          <td>04 Jul 2025<br><span class="time">17:24:${String(sellSec).padStart(2,'0')} GMT</span></td>
-          <td>${value}</td>
-          <td class="positive">+${profit.toFixed(2)}</td>
+          <td>${data.refId}</td>
+          <td><span class="badge currency">${data.currency}</span></td>
+          <td>${fmtDate(buyDate)}<br><span class="time">${fmtTime(buyDate)} GMT</span></td>
+          <td>${data.stake.toFixed(2)}</td>
+          <td>${fmtDate(sellDate)}<br><span class="time">${fmtTime(sellDate)} GMT</span></td>
+          <td>${data.contractValue.toFixed(2)}</td>
+          <td class="${cls}">${sign}${data.profit.toFixed(2)}</td>
         </tr>
       `;
-      tbody.insertAdjacentHTML('beforeend', row);
+      // newest at top:
+      tbody.insertAdjacentHTML('afterbegin', row);
+
+      totalProfit += data.profit;
+      totalProfitEl.textContent = 
+        (totalProfit >= 0 ? '+' : '') + totalProfit.toLocaleString('en-GB', {
+          minimumFractionDigits: 2,
+          maximumFractionDigits: 2
+        });
     }
 
-    // If you ever want to recalc:
-    // totalProfitEl.textContent = '+' + totalProfit.toFixed(2);
+    // load persisted history
+    trades.forEach(renderTrade);
+
+    // listen for new trades
+    const profitChannel = new BroadcastChannel('trade-profits');
+    profitChannel.onmessage = ({ data }) => {
+      trades.unshift(data);
+      localStorage.setItem('trades', JSON.stringify(trades));
+      renderTrade(data);
+    };
   </script>
 </body>
 </html>
