@@ -14,8 +14,8 @@
   />
 
   <!-- load Inter from rsms.me -->
-  <link rel="preconnect" href="https://rsms.me/"> <!-- :contentReference[oaicite:0]{index=0} -->
-  <link rel="stylesheet" href="https://rsms.me/inter/inter.css"> <!-- :contentReference[oaicite:1]{index=1} -->
+  <link rel="preconnect" href="https://rsms.me/">
+  <link rel="stylesheet" href="https://rsms.me/inter/inter.css">
 
   <style>
     :root {
@@ -66,6 +66,7 @@
       overflow-x: hidden;
       scrollbar-width: none;
       background-color: #000;
+      max-height: calc(100vh - 50px);
     }
     .table-container::-webkit-scrollbar {
       display: none;
@@ -105,10 +106,11 @@
       font-size: 11px;
     }
 
+    /* All times same size as other letters */
     .time {
       display: block;
       color: var(--text-secondary);
-      font-size: 11px;
+      font-size: 14px;
       margin-top: 2px;
     }
 
@@ -142,6 +144,10 @@
 
     /* SUMMARY STYLING */
     .summary {
+      position: sticky;
+      bottom: 0;
+      background: var(--main-bg);
+      z-index: 1;
       margin-top: 10px;
       display: flex;
       font-size: 13px;
@@ -153,14 +159,15 @@
     .summary span:first-child {
       flex: 7;
     }
-    /* Move the total-profit value 11cm to the left */
+    /* Move the total-profit value 2cm to the right (was -11cm, now -9cm) */
     .summary .total-profit {
       flex: 1;
       color: var(--accent-positive);
       font-size: 14px;
       text-align: left;
-      margin-left: -11cm;
+      margin-left: -9cm;
     }
+
   </style>
 </head>
 <body>
@@ -219,6 +226,7 @@
       tbody.insertAdjacentHTML('beforeend', row);
     }
 
+    // If you ever want to recalc:
     // totalProfitEl.textContent = '+' + totalProfit.toFixed(2);
   </script>
 </body>
