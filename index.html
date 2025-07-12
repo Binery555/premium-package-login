@@ -5,15 +5,7 @@
   <meta name="viewport" content="width=device-width,initial-scale=1.0" />
   <title>Binary Profit Table (Frontend)</title>
 
-  <!-- load Font Awesome -->
-  <link
-    rel="stylesheet"
-    href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/all.min.css"
-    crossorigin="anonymous"
-    referrerpolicy="no-referrer"
-  />
-
-  <!-- load Inter from rsms.me -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/all.min.css" crossorigin="anonymous" referrerpolicy="no-referrer"/>
   <link rel="preconnect" href="https://rsms.me/">
   <link rel="stylesheet" href="https://rsms.me/inter/inter.css">
 
@@ -166,10 +158,8 @@
   <script>
     const tbody         = document.getElementById('trade-body');
     const totalProfitEl = document.getElementById('total-profit');
-    let trades          = JSON.parse(localStorage.getItem('trades') || '[]');
     let totalProfit     = 0;
 
-    // date/time formatters
     const fmtDate = d => d.toLocaleDateString('en-GB', {
       day: '2-digit', month: 'short', year: 'numeric'
     });
@@ -177,15 +167,11 @@
       hour12: false, hour: '2-digit', minute: '2-digit', second: '2-digit'
     });
 
-    // render a single trade row and update total
-    function renderTrade(data) {
-      if (data.profit === 0.04) return; // Skip trades with exactly +0.04 profit
-
+    function addTrade(data) {
       const buyDate  = new Date(data.buyTime);
       const sellDate = new Date(data.sellTime);
       const cls      = data.profit >= 0 ? 'positive' : 'negative';
       const sign     = data.profit >= 0 ? '+' : '';
-
       const row = `
         <tr>
           <td><i class="fas fa-chart-line"></i></td>
@@ -196,28 +182,20 @@
           <td>${fmtDate(sellDate)}<br><span class="time">${fmtTime(sellDate)} GMT</span></td>
           <td>${data.contractValue.toFixed(2)}</td>
           <td class="${cls}">${sign}${data.profit.toFixed(2)}</td>
-        </tr>
-      `;
-      // newest at top:
+        </tr>`;
       tbody.insertAdjacentHTML('afterbegin', row);
 
       totalProfit += data.profit;
-      totalProfitEl.textContent = 
+      totalProfitEl.textContent =
         (totalProfit >= 0 ? '+' : '') + totalProfit.toLocaleString('en-GB', {
           minimumFractionDigits: 2,
           maximumFractionDigits: 2
         });
     }
 
-    // load persisted history
-    trades.forEach(renderTrade);
-
-    // listen for new trades
     const profitChannel = new BroadcastChannel('trade-profits');
     profitChannel.onmessage = ({ data }) => {
-      trades.unshift(data);
-      localStorage.setItem('trades', JSON.stringify(trades));
-      renderTrade(data);
+      addTrade(data);
     };
   </script>
 </body>
