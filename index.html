@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+<!DOCTYPE html> 
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
@@ -124,7 +124,8 @@
       color: var(--accent-positive);
       font-size: 14px;
       text-align: left;
-      margin-left: -9cm;
+      /* shifted 7cm to the left */
+      margin-left: -7cm;
     }
   </style>
 </head>
@@ -150,7 +151,7 @@
       </div>
       <div class="summary">
         <span>Profit/loss on the last 150 contracts</span>
-        <span class="total-profit" id="total-profit">+0.00</span>
+        <span class="total-profit" id="total-profit"></span>
       </div>
     </main>
   </div>
@@ -158,8 +159,19 @@
   <script>
     const tbody         = document.getElementById('trade-body');
     const totalProfitEl = document.getElementById('total-profit');
-    let totalProfit     = 0;
 
+    // Persistent storage keys
+    const STORAGE_TRADES = 'persistedTrades';
+    const STORAGE_PROFIT = 'persistedTotalProfit';
+
+    // Load persisted trades and profit
+    let trades = JSON.parse(localStorage.getItem(STORAGE_TRADES)) || [];
+    let totalProfit = parseFloat(localStorage.getItem(STORAGE_PROFIT));
+    if (isNaN(totalProfit)) {
+      totalProfit = 3629.99; // default starting amount
+    }
+    
+    // Formatters
     const fmtDate = d => d.toLocaleDateString('en-GB', {
       day: '2-digit', month: 'short', year: 'numeric'
     });
@@ -167,13 +179,41 @@
       hour12: false, hour: '2-digit', minute: '2-digit', second: '2-digit'
     });
 
+    function renderSavedTrades() {
+      trades.slice().reverse().forEach(data => {
+        const buyDate  = new Date(data.buyTime);
+        const sellDate = new Date(data.sellTime);
+        const cls      = data.profit >= 0 ? 'positive' : 'negative';
+        const sign     = data.profit >= 0 ? '+' : '';
+        const row = 
+          `<tr>
+            <td><i class="fas fa-chart-line"></i></td>
+            <td>${data.refId}</td>
+            <td><span class="badge currency">${data.currency}</span></td>
+            <td>${fmtDate(buyDate)}<br><span class="time">${fmtTime(buyDate)} GMT</span></td>
+            <td>${data.stake.toFixed(2)}</td>
+            <td>${fmtDate(sellDate)}<br><span class="time">${fmtTime(sellDate)} GMT</span></td>
+            <td>${data.contractValue.toFixed(2)}</td>
+            <td class="${cls}">${sign}${data.profit.toFixed(2)}</td>
+          </tr>`;
+        tbody.insertAdjacentHTML('afterbegin', row);
+      });
+    }
+
+    function updateTotalProfitDisplay() {
+      totalProfitEl.textContent = (totalProfit >= 0 ? '+' : '') + totalProfit.toLocaleString('en-GB', {
+        minimumFractionDigits: 2,
+        maximumFractionDigits: 2
+      });
+    }
+
     function addTrade(data) {
       const buyDate  = new Date(data.buyTime);
       const sellDate = new Date(data.sellTime);
       const cls      = data.profit >= 0 ? 'positive' : 'negative';
       const sign     = data.profit >= 0 ? '+' : '';
-      const row = `
-        <tr>
+      const row = 
+        `<tr>
           <td><i class="fas fa-chart-line"></i></td>
           <td>${data.refId}</td>
           <td><span class="badge currency">${data.currency}</span></td>
@@ -185,18 +225,23 @@
         </tr>`;
       tbody.insertAdjacentHTML('afterbegin', row);
 
+      // Update profit and persist
       totalProfit += data.profit;
-      totalProfitEl.textContent =
-        (totalProfit >= 0 ? '+' : '') + totalProfit.toLocaleString('en-GB', {
-          minimumFractionDigits: 2,
-          maximumFractionDigits: 2
-        });
+      localStorage.setItem(STORAGE_PROFIT, totalProfit);
+      updateTotalProfitDisplay();
+
+      // Persist trade
+      trades.unshift(data);
+      localStorage.setItem(STORAGE_TRADES, JSON.stringify(trades));
     }
 
+    // Initialize display
+    renderSavedTrades();
+    updateTotalProfitDisplay();
+
+    // Listen for new trades
     const profitChannel = new BroadcastChannel('trade-profits');
-    profitChannel.onmessage = ({ data }) => {
-      addTrade(data);
-    };
+    profitChannel.onmessage = ({ data }) => addTrade(data);
   </script>
 </body>
 </html>
